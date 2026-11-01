@@ -18,6 +18,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100), nullable=False)
     avatar_url = Column(String(255), nullable=True)
+    role = Column(String(20), default="USER", nullable=False)  # "ADMIN", "USER"
     is_online = Column(Boolean, default=False, nullable=False)
     last_seen = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())

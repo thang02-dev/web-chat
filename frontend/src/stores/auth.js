@@ -9,6 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref(null)
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
+  const isAdmin = computed(() => user.value?.role === 'ADMIN')
 
   async function login(usernameOrEmail, password) {
     loading.value = true
@@ -56,7 +57,9 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('user', JSON.stringify(res.data))
       return res.data
     } catch (err) {
-      logout()
+      if (err.response?.status === 401) {
+        logout()
+      }
       return null
     }
   }
@@ -76,6 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     error,
     isAuthenticated,
+    isAdmin,
     login,
     register,
     fetchCurrentUser,

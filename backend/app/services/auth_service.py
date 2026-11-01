@@ -1,5 +1,6 @@
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.models.models import User
@@ -29,12 +30,16 @@ class AuthService:
                 detail="Địa chỉ email này đã được sử dụng."
             )
 
+        clean_user = data.username.lower().strip()
+
+        # Mọi tài khoản đăng ký mới qua form mặc định luôn là USER (Người dùng thường)
         new_user = User(
-            username=data.username.lower().strip(),
+            username=clean_user,
             email=data.email.lower().strip(),
             full_name=data.full_name.strip(),
             avatar_url=data.avatar_url or f"https://api.dicebear.com/7.x/bottts/svg?seed={data.username}",
             password_hash=hash_password(data.password),
+            role="USER",
             is_online=False
         )
         db.add(new_user)

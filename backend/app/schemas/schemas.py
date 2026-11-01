@@ -18,11 +18,21 @@ class UserLogin(BaseModel):
 
 class UserResponse(UserBase):
     id: str
+    role: str = "USER"
     is_online: bool = False
     last_seen: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class UserRoleUpdate(BaseModel):
+    role: str = Field(..., pattern=r"^(ADMIN|USER)$", description="Chỉ chấp nhận ADMIN hoặc USER")
+
+class UserStatsResponse(BaseModel):
+    total_users: int
+    online_users: int
+    admin_count: int
+    user_count: int
 
 # --- Auth Schemas ---
 class Token(BaseModel):

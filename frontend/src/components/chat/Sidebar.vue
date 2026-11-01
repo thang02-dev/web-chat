@@ -13,6 +13,19 @@
       </div>
 
       <div class="header-actions">
+        <!-- Admin Management Icon (Only visible to ADMIN) -->
+        <button
+          v-if="authStore.isAdmin || authStore.user?.role?.toUpperCase() === 'ADMIN'"
+          class="icon-btn admin-nav-btn"
+          title="Trang quản lý người dùng (Admin)"
+          @click="router.push('/admin')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </button>
+
         <button
           class="icon-btn"
           :title="socketStore.soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'"
@@ -22,11 +35,15 @@
         </button>
 
         <button
-          class="icon-btn"
-          title="Đăng xuất"
+          class="icon-btn logout-btn"
+          title="Đăng xuất tài khoản"
           @click="authStore.logout"
         >
-          🚪
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -93,15 +110,24 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useSocketStore } from '@/stores/socket'
 
 defineEmits(['openSearch'])
 
+const router = useRouter()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const socketStore = useSocketStore()
+
+onMounted(async () => {
+  if (authStore.isAuthenticated && (!authStore.user || !authStore.user.role)) {
+    await authStore.fetchCurrentUser()
+  }
+})
 
 const defaultAvatar = 'https://api.dicebear.com/7.x/bottts/svg?seed=user'
 
@@ -167,6 +193,7 @@ function formatSnippetTime(isoString) {
 .header-actions {
   display: flex;
   gap: 0.25rem;
+  align-items: center;
 }
 
 .icon-btn {
@@ -176,10 +203,30 @@ function formatSnippetTime(isoString) {
   border-radius: 0.375rem;
   cursor: pointer;
   font-size: 1rem;
-  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
 }
+
 .icon-btn:hover {
   background: #334155;
+  color: var(--text-main);
+}
+
+.admin-nav-btn {
+  color: #a78bfa;
+}
+
+.admin-nav-btn:hover {
+  background: rgba(167, 139, 250, 0.2) !important;
+  color: #c4b5fd !important;
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #f87171 !important;
 }
 
 .connection-banner {
