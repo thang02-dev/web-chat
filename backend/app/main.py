@@ -1,14 +1,17 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, status
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 from pathlib import Path
 import json
 import logging
+import uuid
+import traceback
+from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine, Base
-from app.core.security import decode_token
+from app.core.security import decode_token, hash_password
 from app.websocket.manager import manager
 from app.services.user_service import UserService
 from app.services.chat_service import ChatService
@@ -23,6 +26,37 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing database schemas...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Self-healing database migration for Cloud/Render environments
+        try:
+            logger.info("Verifying database schema and role column...")
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'USER' NOT NULL;"))
+            
+            # Promote administrative accounts
+            await conn.execute(text("UPDATE users SET role = 'ADMIN' WHERE username IN ('thang', 'thanglq01', 'nguyenvana', 'admin') OR username ILIKE '%thang%';"))
+            
+            # Ensure standard admin account exists: admin / 123456 / admin@gmail.com
+            pwd_hash = hash_password("123456")
+            admin_id = str(uuid.uuid4())
+            await conn.execute(text("UPDATE users SET email = 'old_admin_' || id || '@gmail.com' WHERE email = 'admin@gmail.com' AND username != 'admin';"))
+            
+            res = await conn.execute(text("SELECT id FROM users WHERE username = 'admin';"))
+            existing = res.scalar_one_or_none()
+            if existing:
+                await conn.execute(
+                    text("UPDATE users SET email = 'admin@gmail.com', password_hash = :pwd_hash, role = 'ADMIN', full_name = 'Administrator' WHERE username = 'admin';"),
+                    {"pwd_hash": pwd_hash}
+                )
+            else:
+                await conn.execute(
+                    text("INSERT INTO users (id, username, email, password_hash, full_name, avatar_url, role, is_online, created_at) "
+                         "VALUES (:id, 'admin', 'admin@gmail.com', :pwd_hash, 'Administrator', 'https://api.dicebear.com/7.x/bottts/svg?seed=admin', 'ADMIN', false, NOW());"),
+                    {"id": admin_id, "pwd_hash": pwd_hash}
+                )
+            logger.info("Admin account and schema verification completed successfully.")
+        except Exception as e:
+            logger.error(f"Error during schema verification: {e}")
+
     logger.info("Database schemas initialized.")
     yield
     logger.info("Disposing engine connections...")
@@ -33,6 +67,14 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     lifespan=lifespan
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.method} {request.url}: {exc}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"}
+    )
 
 # CORS Middleware
 app.add_middleware(
