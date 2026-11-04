@@ -3,8 +3,10 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.schemas import UserResponse, UserRoleUpdate, UserLockUpdate, UserStatsResponse
+from app.schemas.gold import CrawlerConfigUpdate, CrawlerConfigResponse
 from app.services.auth_service import get_current_user
 from app.services.user_service import UserService
+from app.services.gold_crawler_manager import crawler_manager
 from app.models.models import User
 from app.websocket.manager import manager
 
@@ -127,4 +129,39 @@ async def get_user_profile(
     u_resp = UserResponse.model_validate(user)
     u_resp.is_online = manager.is_user_online(user.id)
     return u_resp
+
+
+# ==================== Crawler & System Settings (Admin) ====================
+
+@router.get("/admin/crawler-config", response_model=CrawlerConfigResponse)
+async def get_crawler_config(
+    current_admin: User = Depends(require_admin)
+):
+    """(Admin) Lấy trạng thái, chu kỳ và lịch sử quét giá vàng của crawler."""
+    return CrawlerConfigResponse(**crawler_manager.get_status())
+
+
+@router.post("/admin/crawler-config", response_model=CrawlerConfigResponse)
+async def update_crawler_config(
+    payload: CrawlerConfigUpdate,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """(Admin) Cập nhật chu kỳ quét (số phút) và trạng thái bật/tắt của crawler."""
+    await crawler_manager.save_settings(
+        db,
+        interval_minutes=payload.interval_minutes,
+        is_enabled=payload.is_enabled
+    )
+    return CrawlerConfigResponse(**crawler_manager.get_status())
+
+
+@router.post("/admin/crawler-trigger")
+async def trigger_crawler_now(
+    current_admin: User = Depends(require_admin)
+):
+    """(Admin) Kích hoạt quét giá vàng ngay lập tức và trả về kết quả."""
+    result = await crawler_manager.trigger_crawl(source="MANUAL")
+    return result
+
 

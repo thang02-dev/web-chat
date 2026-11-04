@@ -32,7 +32,7 @@
 
         <span class="nav-badge d-none-mobile">
           <i class="bi bi-clock-fill me-1"></i>
-          10 phút / lần
+          {{ isCrawlerEnabled ? `${intervalMinutes} phút / lần` : 'Đã tạm dừng' }}
         </span>
 
         <!-- Manual Crawl Button -->
@@ -56,12 +56,32 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import api from '@/services/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+const intervalMinutes = ref(10)
+const isCrawlerEnabled = ref(true)
+
+async function fetchCrawlerConfig() {
+  try {
+    const res = await api.get('/prices/config')
+    if (res.data) {
+      intervalMinutes.value = res.data.interval_minutes || 10
+      isCrawlerEnabled.value = res.data.is_enabled !== false
+    }
+  } catch (e) {
+    // keep default
+  }
+}
+
+onMounted(() => {
+  fetchCrawlerConfig()
+})
 
 const props = defineProps({
   sseStatus: {

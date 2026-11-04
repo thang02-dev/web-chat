@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.gold import CrawlResult, GoldBatchViewModel, VersionResponse, DeleteBatchRequest, DeleteBatchResult
 from app.services.gold_service import gold_price_service
+from app.services.gold_crawler_manager import crawler_manager
 from app.websocket.gold_sse import gold_sse_manager
 
 logger = logging.getLogger("webchat.api.gold")
@@ -42,6 +43,15 @@ async def get_version(db: AsyncSession = Depends(get_db)):
     return VersionResponse(latest_time=latest_time)
 
 
+@router.get("/config")
+async def get_crawler_public_config():
+    """Trả về chu kỳ quét công khai cho Navbar hiển thị badge."""
+    return {
+        "interval_minutes": crawler_manager.interval_minutes,
+        "is_enabled": crawler_manager.is_enabled
+    }
+
+
 @router.post("/crawl", response_model=CrawlResult)
 async def trigger_crawl(db: AsyncSession = Depends(get_db)):
     """
@@ -49,12 +59,8 @@ async def trigger_crawl(db: AsyncSession = Depends(get_db)):
     Lưu bản ghi mới khi có biến động giá và tự động phát tín hiệu SSE tới client.
     """
     try:
-        saved = await gold_price_service.crawl_and_save_changed_prices(db)
-        if saved > 0:
-            msg = f"Quét thành công! Đã lưu {saved} bản ghi mới có biến động giá."
-        else:
-            msg = "Quét thành công! Giá không có thay đổi so với lần trước."
-        return CrawlResult(saved=saved, message=msg)
+        res = await crawler_manager.trigger_crawl(source="MANUAL")
+        return CrawlResult(saved=res["saved"], message=res["message"])
     except Exception as e:
         logger.error(f"Manual crawl failed: {e}", exc_info=True)
         return JSONResponse(

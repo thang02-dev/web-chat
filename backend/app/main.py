@@ -18,26 +18,12 @@ from app.websocket.manager import manager
 from app.services.user_service import UserService
 from app.services.chat_service import ChatService
 from app.services.gold_service import gold_price_service
+from app.services.gold_crawler_manager import crawler_manager
 from app.api.v1 import auth, users, conversations, gold
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("main")
-
-async def scheduled_gold_crawl_loop():
-    logger.info("Background gold price crawler loop initialized.")
-    await asyncio.sleep(5)  # Let startup finish
-    while True:
-        try:
-            async with AsyncSessionLocal() as db:
-                saved = await gold_price_service.crawl_and_save_changed_prices(db)
-                if saved > 0:
-                    logger.info(f"=== [Gold Scheduler] Đã lưu {saved} bản ghi mới có biến động giá. ===")
-                else:
-                    logger.debug("=== [Gold Scheduler] Quét xong: không có biến động giá. ===")
-        except Exception as e:
-            logger.error(f"=== [Gold Scheduler] Lỗi crawl định kỳ: {e} ===")
-        await asyncio.sleep(600)  # 10 minutes
 
 
 @asynccontextmanager
@@ -51,6 +37,15 @@ async def lifespan(app: FastAPI):
             logger.info("Verifying database schema and role column...")
             await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'USER' NOT NULL;"))
             await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE NOT NULL;"))
+            
+            # Ensure system_settings table exists
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key VARCHAR(50) PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+                );
+            """))
             
             # Promote administrative accounts
             await conn.execute(text("UPDATE users SET role = 'ADMIN' WHERE username IN ('thang', 'thanglq01', 'nguyenvana', 'admin') OR username ILIKE '%thang%';"))
@@ -92,8 +87,11 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error during schema verification: {e}")
 
+    # Initialize crawler settings from database
+    await crawler_manager.init_from_db()
+
     # Launch background gold crawler task
-    crawler_task = asyncio.create_task(scheduled_gold_crawl_loop())
+    crawler_task = asyncio.create_task(crawler_manager.run_loop())
     logger.info("Database schemas initialized and background gold crawler started.")
 
     yield

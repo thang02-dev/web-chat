@@ -54,3 +54,31 @@ class DeleteBatchResult(BaseModel):
     deleted: int
     message: str
 
+
+class CrawlerConfigUpdate(BaseModel):
+    interval_minutes: int = Field(10, ge=1, le=1440, description="Chu kỳ quét giá vàng tính theo phút (1 - 1440)")
+    is_enabled: bool = Field(True, description="Trạng thái kích hoạt tự động quét")
+
+
+class CrawlerLogItem(BaseModel):
+    id: str
+    timestamp: str
+    source: str
+    status: str
+    saved_count: int
+    message: str
+    duration_ms: int
+
+
+class CrawlerConfigResponse(BaseModel):
+    interval_minutes: int
+    is_enabled: bool
+    is_crawling: bool
+    last_crawl_at: Optional[str] = None
+    last_crawl_status: str
+    last_crawl_count: int
+    last_crawl_message: str
+    next_crawl_at: Optional[str] = None
+    recent_logs: List[CrawlerLogItem] = Field(default_factory=list)
+
+

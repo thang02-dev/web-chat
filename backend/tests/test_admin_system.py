@@ -185,3 +185,31 @@ async def test_admin_system_and_permissions(client: AsyncClient):
     })
     assert res_login_again.status_code == 200
 
+    # 23. Regular user forbidden from crawler config
+    res_user_crawler = await client.get("/api/v1/users/admin/crawler-config", headers=user_headers)
+    assert res_user_crawler.status_code == 403
+
+    # 24. Admin gets crawler config
+    res_admin_crawler = await client.get("/api/v1/users/admin/crawler-config", headers=admin_headers)
+    assert res_admin_crawler.status_code == 200
+    cfg = res_admin_crawler.json()
+    assert "interval_minutes" in cfg
+    assert "is_enabled" in cfg
+    assert "recent_logs" in cfg
+
+    # 25. Admin updates crawler interval to 5 minutes
+    res_update_crawler = await client.post(
+        "/api/v1/users/admin/crawler-config",
+        json={"interval_minutes": 5, "is_enabled": True},
+        headers=admin_headers
+    )
+    assert res_update_crawler.status_code == 200
+    assert res_update_crawler.json()["interval_minutes"] == 5
+    assert res_update_crawler.json()["is_enabled"] is True
+
+    # 26. Public endpoint reflects 5 minutes
+    res_public_crawler = await client.get("/api/v1/prices/config")
+    assert res_public_crawler.status_code == 200
+    assert res_public_crawler.json()["interval_minutes"] == 5
+
+
