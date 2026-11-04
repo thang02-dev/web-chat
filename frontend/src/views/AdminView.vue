@@ -8,7 +8,7 @@
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
-          <span>Quay lại Chat</span>
+          <span class="back-text">Quay lại Chat</span>
         </button>
         <div class="title-group">
           <h1>Quản Lý Người Dùng</h1>
@@ -157,118 +157,244 @@
           <p>Không tìm thấy người dùng nào phù hợp với điều kiện tìm kiếm.</p>
         </div>
 
-        <table v-else class="users-table">
-          <thead>
-            <tr>
-              <th>Người Dùng</th>
-              <th>Email</th>
-              <th>Vai Trò (Role)</th>
-              <th>Trạng Thái</th>
-              <th>Ngày Tham Gia</th>
-              <th class="text-right">Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="u in filteredUsers" :key="u.id" :class="{ 'current-user-row': u.id === authStore.user?.id }">
-              <!-- User Info -->
-              <td>
-                <div class="user-cell">
-                  <div class="avatar-wrap">
-                    <img :src="u.avatar_url || defaultAvatar" alt="Avatar" />
-                    <span :class="['dot-status', u.is_online ? 'online' : 'offline']"></span>
-                  </div>
-                  <div class="user-cell-meta">
-                    <span class="name">
-                      {{ u.full_name }}
-                      <span v-if="u.id === authStore.user?.id" class="you-badge">(Bạn)</span>
+        <div v-else class="users-view-wrapper">
+          <!-- Desktop Table View -->
+          <div class="desktop-table-view">
+            <table class="users-table">
+              <thead>
+                <tr>
+                  <th>Người Dùng</th>
+                  <th>Email</th>
+                  <th>Vai Trò (Role)</th>
+                  <th>Trạng Thái</th>
+                  <th>Ngày Tham Gia</th>
+                  <th class="text-right">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="u in filteredUsers" :key="u.id" :class="{ 'current-user-row': u.id === authStore.user?.id }">
+                  <!-- User Info -->
+                  <td>
+                    <div class="user-cell">
+                      <div class="avatar-wrap">
+                        <img :src="u.avatar_url || defaultAvatar" alt="Avatar" />
+                        <span :class="['dot-status', u.is_online ? 'online' : 'offline']"></span>
+                      </div>
+                      <div class="user-cell-meta">
+                        <span class="name">
+                          {{ u.full_name }}
+                          <span v-if="u.id === authStore.user?.id" class="you-badge">(Bạn)</span>
+                        </span>
+                        <span class="handle">@{{ u.username }}</span>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Email -->
+                  <td>
+                    <span class="email-text">{{ u.email }}</span>
+                  </td>
+
+                  <!-- Role (Quản lý / Người dùng) -->
+                  <td>
+                    <span :class="['role-pill', u.role === 'ADMIN' ? 'role-admin' : 'role-user']">
+                      <span v-if="u.role === 'ADMIN'" class="role-icon">🛡️</span>
+                      <span v-else class="role-icon">👤</span>
+                      {{ u.role === 'ADMIN' ? 'Quản lý' : 'Người dùng' }}
                     </span>
-                    <span class="handle">@{{ u.username }}</span>
+                  </td>
+
+                  <!-- Status -->
+                  <td>
+                    <div class="status-cell">
+                      <span v-if="u.is_locked" class="status-badge badge-locked">
+                        🔒 Đã khóa
+                      </span>
+                      <span v-else :class="['status-badge', u.is_online ? 'badge-online' : 'badge-offline']">
+                        {{ u.is_online ? 'Trực tuyến' : 'Ngoại tuyến' }}
+                      </span>
+                      <span v-if="!u.is_online && u.last_seen" class="last-seen">
+                        {{ formatLastSeen(u.last_seen) }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Created At -->
+                  <td>
+                    <span class="date-text">{{ formatDate(u.created_at) }}</span>
+                  </td>
+
+                  <!-- Actions -->
+                  <td class="text-right">
+                    <div class="action-buttons">
+                      <!-- Toggle Role Button -->
+                      <button
+                        v-if="u.role === 'USER'"
+                        class="btn-action btn-promote"
+                        :disabled="actionLoadingId === u.id"
+                        @click="confirmRoleChange(u, 'ADMIN')"
+                      >
+                        <span>🛡️ Thăng Quản lý</span>
+                      </button>
+
+                      <button
+                        v-else-if="u.role === 'ADMIN'"
+                        class="btn-action btn-demote"
+                        :disabled="actionLoadingId === u.id || (u.id === authStore.user?.id && stats.admin_count <= 1)"
+                        :title="u.id === authStore.user?.id && stats.admin_count <= 1 ? 'Bạn là Quản lý duy nhất, không thể hạ quyền' : 'Chuyển về Người dùng'"
+                        @click="confirmRoleChange(u, 'USER')"
+                      >
+                        <span>👤 Chuyển Người dùng</span>
+                      </button>
+
+                      <!-- Lock / Unlock Button -->
+                      <button
+                        v-if="!u.is_locked"
+                        class="btn-action btn-lock"
+                        :disabled="actionLoadingId === u.id || u.id === authStore.user?.id"
+                        :title="u.id === authStore.user?.id ? 'Không thể tự khóa tài khoản của chính mình' : 'Khóa tài khoản này'"
+                        @click="confirmLockToggle(u, true)"
+                      >
+                        <span>🔒 Khóa</span>
+                      </button>
+
+                      <button
+                        v-else
+                        class="btn-action btn-unlock"
+                        :disabled="actionLoadingId === u.id"
+                        title="Mở khóa tài khoản"
+                        @click="confirmLockToggle(u, false)"
+                      >
+                        <span>🔓 Mở khóa</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile Cards View -->
+          <div class="mobile-cards-view">
+            <div
+              v-for="u in filteredUsers"
+              :key="u.id"
+              :class="['user-card-mobile', { 'current-user-card': u.id === authStore.user?.id }]"
+            >
+              <!-- Card Header -->
+              <div class="user-card-header">
+                <div class="avatar-wrap">
+                  <img :src="u.avatar_url || defaultAvatar" alt="Avatar" />
+                  <span :class="['dot-status', u.is_online ? 'online' : 'offline']"></span>
+                </div>
+                <div class="user-card-meta">
+                  <div class="name-row">
+                    <span class="user-name">{{ u.full_name }}</span>
+                    <span v-if="u.id === authStore.user?.id" class="you-badge">(Bạn)</span>
+                  </div>
+                  <span class="user-handle">@{{ u.username }}</span>
+                </div>
+                <div class="user-card-role">
+                  <span :class="['role-pill', u.role === 'ADMIN' ? 'role-admin' : 'role-user']">
+                    <span v-if="u.role === 'ADMIN'" class="role-icon">🛡️</span>
+                    <span v-else class="role-icon">👤</span>
+                    {{ u.role === 'ADMIN' ? 'Quản lý' : 'Người dùng' }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Card Body: Details -->
+              <div class="user-card-body">
+                <div class="card-info-item">
+                  <span class="info-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                      <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    Email
+                  </span>
+                  <span class="info-value email-text">{{ u.email }}</span>
+                </div>
+
+                <div class="card-info-item">
+                  <span class="info-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Trạng thái
+                  </span>
+                  <div class="info-value status-group">
+                    <span v-if="u.is_locked" class="status-badge badge-locked">
+                      🔒 Đã khóa
+                    </span>
+                    <span v-else :class="['status-badge', u.is_online ? 'badge-online' : 'badge-offline']">
+                      {{ u.is_online ? 'Trực tuyến' : 'Ngoại tuyến' }}
+                    </span>
+                    <span v-if="!u.is_online && u.last_seen" class="last-seen">
+                      {{ formatLastSeen(u.last_seen) }}
+                    </span>
                   </div>
                 </div>
-              </td>
 
-              <!-- Email -->
-              <td>
-                <span class="email-text">{{ u.email }}</span>
-              </td>
-
-              <!-- Role (Quản lý / Người dùng) -->
-              <td>
-                <span :class="['role-pill', u.role === 'ADMIN' ? 'role-admin' : 'role-user']">
-                  <span v-if="u.role === 'ADMIN'" class="role-icon">🛡️</span>
-                  <span v-else class="role-icon">👤</span>
-                  {{ u.role === 'ADMIN' ? 'Quản lý' : 'Người dùng' }}
-                </span>
-              </td>
-
-              <!-- Status -->
-              <td>
-                <div class="status-cell">
-                  <span v-if="u.is_locked" class="status-badge badge-locked">
-                    🔒 Đã khóa
+                <div class="card-info-item">
+                  <span class="info-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    Tham gia
                   </span>
-                  <span v-else :class="['status-badge', u.is_online ? 'badge-online' : 'badge-offline']">
-                    {{ u.is_online ? 'Trực tuyến' : 'Ngoại tuyến' }}
-                  </span>
-                  <span v-if="!u.is_online && u.last_seen" class="last-seen">
-                    {{ formatLastSeen(u.last_seen) }}
-                  </span>
+                  <span class="info-value date-text">{{ formatDate(u.created_at) }}</span>
                 </div>
-              </td>
+              </div>
 
-              <!-- Created At -->
-              <td>
-                <span class="date-text">{{ formatDate(u.created_at) }}</span>
-              </td>
+              <!-- Card Actions -->
+              <div class="user-card-actions">
+                <button
+                  v-if="u.role === 'USER'"
+                  class="btn-action btn-promote"
+                  :disabled="actionLoadingId === u.id"
+                  @click="confirmRoleChange(u, 'ADMIN')"
+                >
+                  <span>🛡️ Thăng Quản lý</span>
+                </button>
 
-              <!-- Actions -->
-              <td class="text-right">
-                <div class="action-buttons">
-                  <!-- Toggle Role Button -->
-                  <button
-                    v-if="u.role === 'USER'"
-                    class="btn-action btn-promote"
-                    :disabled="actionLoadingId === u.id"
-                    @click="confirmRoleChange(u, 'ADMIN')"
-                  >
-                    <span>🛡️ Thăng Quản lý</span>
-                  </button>
+                <button
+                  v-else-if="u.role === 'ADMIN'"
+                  class="btn-action btn-demote"
+                  :disabled="actionLoadingId === u.id || (u.id === authStore.user?.id && stats.admin_count <= 1)"
+                  :title="u.id === authStore.user?.id && stats.admin_count <= 1 ? 'Bạn là Quản lý duy nhất, không thể hạ quyền' : 'Chuyển về Người dùng'"
+                  @click="confirmRoleChange(u, 'USER')"
+                >
+                  <span>👤 Chuyển Người dùng</span>
+                </button>
 
-                  <button
-                    v-else-if="u.role === 'ADMIN'"
-                    class="btn-action btn-demote"
-                    :disabled="actionLoadingId === u.id || (u.id === authStore.user?.id && stats.admin_count <= 1)"
-                    :title="u.id === authStore.user?.id && stats.admin_count <= 1 ? 'Bạn là Quản lý duy nhất, không thể hạ quyền' : 'Chuyển về Người dùng'"
-                    @click="confirmRoleChange(u, 'USER')"
-                  >
-                    <span>👤 Chuyển Người dùng</span>
-                  </button>
+                <button
+                  v-if="!u.is_locked"
+                  class="btn-action btn-lock"
+                  :disabled="actionLoadingId === u.id || u.id === authStore.user?.id"
+                  :title="u.id === authStore.user?.id ? 'Không thể tự khóa tài khoản của chính mình' : 'Khóa tài khoản này'"
+                  @click="confirmLockToggle(u, true)"
+                >
+                  <span>🔒 Khóa</span>
+                </button>
 
-                  <!-- Lock / Unlock Button -->
-                  <button
-                    v-if="!u.is_locked"
-                    class="btn-action btn-lock"
-                    :disabled="actionLoadingId === u.id || u.id === authStore.user?.id"
-                    :title="u.id === authStore.user?.id ? 'Không thể tự khóa tài khoản của chính mình' : 'Khóa tài khoản này'"
-                    @click="confirmLockToggle(u, true)"
-                  >
-                    <span>🔒 Khóa</span>
-                  </button>
-
-                  <button
-                    v-else
-                    class="btn-action btn-unlock"
-                    :disabled="actionLoadingId === u.id"
-                    title="Mở khóa tài khoản"
-                    @click="confirmLockToggle(u, false)"
-                  >
-                    <span>🔓 Mở khóa</span>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <button
+                  v-else
+                  class="btn-action btn-unlock"
+                  :disabled="actionLoadingId === u.id"
+                  title="Mở khóa tài khoản"
+                  @click="confirmLockToggle(u, false)"
+                >
+                  <span>🔓 Mở khóa</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
 
@@ -1315,30 +1441,347 @@ onMounted(async () => {
   to { transform: translateY(0); opacity: 1; }
 }
 
+/* Desktop & Mobile Views */
+.users-view-wrapper {
+  width: 100%;
+}
+
+.desktop-table-view {
+  display: block;
+}
+
+.mobile-cards-view {
+  display: none;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
-  .users-table thead {
+  .admin-main {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  /* Toggle Table vs Mobile Cards */
+  .desktop-table-view {
     display: none;
   }
-  .users-table, .users-table tbody, .users-table tr, .users-table td {
-    display: block;
-    width: 100%;
-  }
-  .users-table tr {
-    margin-bottom: 1rem;
-    background: rgba(30, 41, 59, 0.5);
-    border-radius: 0.5rem;
-    padding: 0.75rem;
-    border: 1px solid var(--border-color);
-  }
-  .users-table td {
-    padding: 0.5rem 0.25rem;
+
+  .mobile-cards-view {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem;
   }
-  .text-right {
-    text-align: left;
+
+  .table-container {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  /* User Card Mobile */
+  .user-card-mobile {
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
+    transition: all 0.2s ease;
+  }
+
+  .current-user-card {
+    border-color: rgba(59, 130, 246, 0.5);
+    background: rgba(30, 41, 59, 0.65);
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
+  }
+
+  .user-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+    padding-bottom: 0.75rem;
+  }
+
+  .user-card-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .user-name {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-handle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .user-card-role {
+    flex-shrink: 0;
+  }
+
+  /* Card Body */
+  .user-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    background: rgba(15, 23, 42, 0.4);
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(51, 65, 85, 0.3);
+  }
+
+  .card-info-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .info-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .info-value {
+    color: var(--text-main);
+    text-align: right;
+  }
+
+  .status-group {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Card Actions */
+  .user-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-top: 0.125rem;
+  }
+
+  .user-card-actions .btn-action {
+    width: 100%;
+    justify-content: center;
+    padding: 0.55rem 0.5rem;
+    font-size: 0.8125rem;
+    border-radius: 0.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Header Mobile */
+  .admin-header {
+    height: 56px;
+    padding: 0 0.875rem;
+  }
+
+  .header-left {
+    gap: 0.5rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .back-btn {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.8125rem;
+    flex-shrink: 0;
+    border-radius: 0.375rem;
+  }
+
+  .back-text {
+    display: none;
+  }
+
+  .title-group {
+    min-width: 0;
+    flex: 1;
+    gap: 0.5rem;
+  }
+
+  .title-group h1 {
+    font-size: 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .admin-badge {
+    display: none;
+  }
+
+  .profile-info {
+    display: none;
+  }
+
+  .profile-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  /* Main & Stats Grid */
+  .admin-main {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+
+  .stat-card {
+    padding: 0.625rem 0.75rem;
+    gap: 0.625rem;
+    border-radius: 0.625rem;
+  }
+
+  .stat-card:nth-child(5) {
+    grid-column: span 2;
+  }
+
+  .stat-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .stat-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  .stat-label {
+    font-size: 0.6875rem;
+    line-height: 1.2;
+  }
+
+  /* Toolbar Section */
+  .toolbar-section {
+    padding: 0.75rem;
+    gap: 0.625rem;
+    border-radius: 0.625rem;
+  }
+
+  .search-box {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .search-box input {
+    font-size: 0.8125rem;
+    padding: 0.55rem 2rem 0.55rem 2.25rem;
+  }
+
+  .filters-group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .filter-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .filter-item label {
+    font-size: 0.75rem;
+  }
+
+  .filter-item select {
+    width: 100%;
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8125rem;
+  }
+
+  .btn-refresh {
+    grid-column: span 2;
+    width: 100%;
+    justify-content: center;
+    padding: 0.55rem;
+    font-size: 0.8125rem;
+    border-radius: 0.5rem;
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    padding: 0.75rem;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0.75rem;
+  }
+
+  .modal-header {
+    padding: 1rem;
+  }
+
+  .modal-header h3 {
+    font-size: 1rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+    font-size: 0.875rem;
+  }
+
+  .modal-footer {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .modal-footer button {
+    flex: 1;
+    justify-content: center;
+    padding: 0.55rem;
+    font-size: 0.8125rem;
   }
 }
 </style>
