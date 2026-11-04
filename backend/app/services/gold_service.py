@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional
 from sqlalchemy import select, func
@@ -11,6 +11,19 @@ from app.services.gold_crawler import gold_crawler
 from app.websocket.gold_sse import gold_sse_manager
 
 logger = logging.getLogger("webchat.gold.service")
+
+# Múi giờ chuẩn Việt Nam (UTC+7)
+VN_TZ = timezone(timedelta(hours=7))
+
+
+def to_vietnam_time(dt: Optional[datetime]) -> Optional[datetime]:
+    """Chuyển đổi datetime sang múi giờ Việt Nam (UTC+7)."""
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(VN_TZ)
+
 
 PREFERRED_TYPE_ORDER = [
     "Vàng 9999",
@@ -42,7 +55,7 @@ class GoldPriceService:
             logger.warning("No data fetched from gold crawler; skipping persistence.")
             return 0
 
-        batch_time = datetime.now()
+        batch_time = datetime.now(timezone.utc)
         saved_count = 0
 
         for dto in scraped:
@@ -197,7 +210,8 @@ class GoldPriceService:
 
         for i, batch in enumerate(batches_raw):
             batch_time: datetime = batch["batch_time"]
-            formatted_time = batch_time.strftime("%H:%M:%S %d/%m/%Y") if batch_time else "–"
+            vn_time = to_vietnam_time(batch_time)
+            formatted_time = vn_time.strftime("%H:%M:%S %d/%m/%Y") if vn_time else "–"
             is_latest = (i == 0)
 
             # Sort cards according to standard priority
@@ -209,6 +223,7 @@ class GoldPriceService:
             for card in raw_cards:
                 current_buy = float(card.buy_price)
                 current_sell = float(card.sell_price)
+                vn_card_updated = to_vietnam_time(card.updated_at)
 
                 prev_buy = None
                 prev_sell = None
@@ -230,13 +245,13 @@ class GoldPriceService:
                     buy_price=current_buy,
                     sell_price=current_sell,
                     price_date=card.price_date,
-                    updated_at=card.updated_at,
+                    updated_at=vn_card_updated,
                     buy_price_delta=buy_delta,
                     sell_price_delta=sell_delta
                 ))
 
             result_batches.append(GoldBatchViewModel(
-                batch_time=batch_time,
+                batch_time=vn_time,
                 formatted_batch_time=formatted_time,
                 is_latest=is_latest,
                 cards=card_view_models

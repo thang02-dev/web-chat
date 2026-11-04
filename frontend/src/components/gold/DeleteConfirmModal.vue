@@ -27,7 +27,7 @@
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="text-secondary small">Mốc thời gian:</span>
             <strong class="text-gold" style="font-family: monospace; font-size: 0.95rem;">
-              {{ batch.formatted_batch_time }}
+              {{ formatBatchTime(batch) }}
             </strong>
           </div>
           <div class="d-flex align-items-center justify-content-between">
@@ -100,4 +100,17 @@ defineProps({
 })
 
 defineEmits(['cancel', 'confirm'])
+
+function formatBatchTime(batch) {
+  if (!batch) return '–'
+  if (batch.batch_time) {
+    const d = new Date(batch.batch_time)
+    if (!isNaN(d.getTime())) {
+      const pad = n => String(n).padStart(2, '0')
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+    }
+  }
+  return batch.formatted_batch_time || '–'
+}
 </script>
+

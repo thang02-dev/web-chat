@@ -17,7 +17,7 @@
         <div class="d-flex align-items-center gap-2">
           <span class="pulse-dot"></span>
           <h3 class="batch-title live-title mb-0">
-            Giá Hiện Tại <span class="batch-time-highlight">({{ batch.formatted_batch_time }})</span>
+            Giá Hiện Tại <span class="batch-time-highlight">({{ formatBatchTime(batch) }})</span>
           </h3>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -44,7 +44,7 @@
         <div class="d-flex align-items-center gap-2">
           <span class="history-dot"></span>
           <h3 class="batch-title history-title mb-0">
-            {{ batch.formatted_batch_time }}
+            {{ formatBatchTime(batch) }}
           </h3>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -91,5 +91,17 @@ defineProps({
 })
 
 defineEmits(['request-delete'])
+
+function formatBatchTime(batch) {
+  if (!batch) return '–'
+  if (batch.batch_time) {
+    const d = new Date(batch.batch_time)
+    if (!isNaN(d.getTime())) {
+      const pad = n => String(n).padStart(2, '0')
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+    }
+  }
+  return batch.formatted_batch_time || '–'
+}
 </script>
 
