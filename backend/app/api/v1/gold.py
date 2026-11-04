@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.schemas.gold import CrawlResult, GoldBatchViewModel, VersionResponse
+from app.schemas.gold import CrawlResult, GoldBatchViewModel, VersionResponse, DeleteBatchRequest, DeleteBatchResult
 from app.services.gold_service import gold_price_service
 from app.websocket.gold_sse import gold_sse_manager
 
@@ -63,6 +63,27 @@ async def trigger_crawl(db: AsyncSession = Depends(get_db)):
         )
 
 
+@router.post("/batch/delete", response_model=DeleteBatchResult)
+@router.delete("/batch", response_model=DeleteBatchResult)
+async def delete_batch(payload: DeleteBatchRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Xóa một đợt giá vàng theo danh sách ID các thẻ.
+    Phát tín hiệu SSE để cập nhật tự động toàn bộ client đang mở bảng giá.
+    """
+    try:
+        deleted = await gold_price_service.delete_price_batch(db, payload.ids)
+        return DeleteBatchResult(
+            deleted=deleted,
+            message=f"Đã xóa thành công {deleted} bản ghi giá vàng."
+        )
+    except Exception as e:
+        logger.error(f"Xóa đợt giá vàng thất bại: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"deleted": 0, "message": f"Xóa thất bại: {str(e)}"}
+        )
+
+
 @router.get("/stream")
 async def stream_prices(request: Request):
     """
@@ -98,3 +119,4 @@ async def stream_prices(request: Request):
             "X-Accel-Buffering": "no"
         }
     )
+

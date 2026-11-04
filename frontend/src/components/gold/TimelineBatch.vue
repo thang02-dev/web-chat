@@ -20,9 +20,20 @@
             Giá Hiện Tại <span class="batch-time-highlight">({{ batch.formatted_batch_time }})</span>
           </h3>
         </div>
-        <span class="live-indicator">
-          <span class="live-dot"></span>LIVE
-        </span>
+        <div class="d-flex align-items-center gap-2">
+          <span class="live-indicator">
+            <span class="live-dot"></span>LIVE
+          </span>
+          <button
+            type="button"
+            class="btn-delete-batch"
+            title="Xóa đợt cập nhật này"
+            @click.stop="$emit('request-delete', batch)"
+          >
+            <i class="bi bi-x-lg"></i>
+            <span>Xóa</span>
+          </button>
+        </div>
       </div>
 
       <!-- If Not Latest (Lịch sử) -->
@@ -36,9 +47,20 @@
             {{ batch.formatted_batch_time }}
           </h3>
         </div>
-        <span class="history-pill">
-          <i class="bi bi-arrow-counterclockwise me-1"></i>Đợt cập nhật trước
-        </span>
+        <div class="d-flex align-items-center gap-2">
+          <span class="history-pill">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Đợt cập nhật trước
+          </span>
+          <button
+            type="button"
+            class="btn-delete-batch"
+            title="Xóa đợt cập nhật này"
+            @click.stop="$emit('request-delete', batch)"
+          >
+            <i class="bi bi-x-lg"></i>
+            <span>Xóa</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -67,4 +89,7 @@ defineProps({
     default: false
   }
 })
+
+defineEmits(['request-delete'])
 </script>
+

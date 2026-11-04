@@ -45,3 +45,4 @@ defineProps({
 
 defineEmits(['update:selectedType'])
 </script>
+

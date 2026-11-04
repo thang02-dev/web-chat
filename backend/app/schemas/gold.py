@@ -44,3 +44,13 @@ class CrawlResult(BaseModel):
 
 class VersionResponse(BaseModel):
     latest_time: int
+
+
+class DeleteBatchRequest(BaseModel):
+    ids: List[int] = Field(default_factory=list, description="Danh sách ID bản ghi cần xóa")
+
+
+class DeleteBatchResult(BaseModel):
+    deleted: int
+    message: str
+

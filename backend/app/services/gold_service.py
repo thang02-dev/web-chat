@@ -95,6 +95,26 @@ class GoldPriceService:
         return saved_count
 
     @staticmethod
+    async def delete_price_batch(db: AsyncSession, ids: List[int]) -> int:
+        """
+        Xóa các bản ghi giá vàng theo danh sách ID và phát tín hiệu SSE cập nhật.
+        """
+        if not ids:
+            return 0
+
+        from sqlalchemy import delete
+        stmt = delete(GoldPriceHistory).where(GoldPriceHistory.id.in_(ids))
+        result = await db.execute(stmt)
+        deleted_count = result.rowcount or 0
+        await db.commit()
+
+        logger.info(f"Đã xóa {deleted_count} bản ghi giá vàng (IDs: {ids}).")
+        if deleted_count > 0:
+            await gold_sse_manager.broadcast_price_update(deleted_count)
+
+        return deleted_count
+
+    @staticmethod
     async def get_all_gold_types(db: AsyncSession) -> List[str]:
         """Returns all distinct gold type names for the filter dropdown."""
         stmt = (
@@ -226,3 +246,4 @@ class GoldPriceService:
 
 
 gold_price_service = GoldPriceService()
+

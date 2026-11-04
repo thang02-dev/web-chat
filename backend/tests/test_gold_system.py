@@ -74,3 +74,34 @@ async def test_alias_endpoints(client: AsyncClient):
     res_batches = await client.get("/api/prices/batches")
     assert res_batches.status_code == 200
     assert isinstance(res_batches.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_delete_batch_endpoint(client: AsyncClient):
+    """Kiểm tra xóa đợt giá vàng qua API."""
+    async with TestAsyncSessionLocal() as db:
+        test_type = f"Vàng Xóa {uuid.uuid4().hex[:6]}"
+        row = GoldPriceHistory(
+            gold_type=test_type,
+            buy_price=50000000.0,
+            sell_price=51000000.0,
+            price_date="04/11/2026",
+            updated_at=datetime.now()
+        )
+        db.add(row)
+        await db.commit()
+        await db.refresh(row)
+        row_id = row.id
+
+    # Gửi yêu cầu xóa bản ghi
+    res = await client.post("/api/v1/prices/batch/delete", json={"ids": [row_id]})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["deleted"] == 1
+
+    # Kiểm tra lại DB không còn bản ghi đó
+    async with TestAsyncSessionLocal() as db:
+        from sqlalchemy import select
+        res_db = await db.execute(select(GoldPriceHistory).where(GoldPriceHistory.id == row_id))
+        assert res_db.scalar_one_or_none() is None
+

@@ -134,3 +134,4 @@ class GoldCrawler:
 
 
 gold_crawler = GoldCrawler()
+

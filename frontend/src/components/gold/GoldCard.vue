@@ -107,3 +107,4 @@ function formatVnd(val) {
   return Math.abs(Math.round(val)).toLocaleString('vi-VN') + ' đ'
 }
 </script>
+

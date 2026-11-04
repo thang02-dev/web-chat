@@ -41,6 +41,7 @@
           :key="batch.formatted_batch_time + idx"
           :batch="batch"
           :is-highlighted="idx === 0 && isLatestHighlighted"
+          @request-delete="handleRequestDelete"
         />
       </div>
     </main>
@@ -55,6 +56,15 @@
       :type="toast.type"
       @close="toast.visible = false"
     />
+
+    <!-- Delete Confirmation Modal -->
+    <DeleteConfirmModal
+      :visible="deleteModal.isOpen"
+      :batch="deleteModal.batch"
+      :loading="deleteModal.isDeleting"
+      @cancel="deleteModal.isOpen = false"
+      @confirm="handleConfirmDelete"
+    />
   </div>
 </template>
 
@@ -67,6 +77,7 @@ import FilterBar from '@/components/gold/FilterBar.vue'
 import TimelineBatch from '@/components/gold/TimelineBatch.vue'
 import SiteFooter from '@/components/gold/SiteFooter.vue'
 import ToastNotification from '@/components/gold/ToastNotification.vue'
+import DeleteConfirmModal from '@/components/gold/DeleteConfirmModal.vue'
 import '@/assets/gold.css'
 
 const batches = ref([])
@@ -77,6 +88,12 @@ const isRefreshing = ref(false)
 const isCrawling = ref(false)
 const isLatestHighlighted = ref(false)
 const sseStatus = ref('connecting')
+
+const deleteModal = ref({
+  isOpen: false,
+  batch: null,
+  isDeleting: false
+})
 
 const toast = ref({
   visible: false,
@@ -172,6 +189,38 @@ async function handleTriggerCrawl() {
   }
 }
 
+function handleRequestDelete(batch) {
+  deleteModal.value.batch = batch
+  deleteModal.value.isOpen = true
+}
+
+async function handleConfirmDelete() {
+  const batch = deleteModal.value.batch
+  if (!batch) return
+
+  const ids = (batch.cards || []).map(c => c.id).filter(Boolean)
+  if (ids.length === 0) {
+    showToast('Không tìm thấy bản ghi để xóa.', 'danger')
+    deleteModal.value.isOpen = false
+    return
+  }
+
+  deleteModal.value.isDeleting = true
+  try {
+    const res = await api.post('/prices/batch/delete', { ids })
+    const data = res.data
+    showToast(`Đã xóa thành công đợt cập nhật (${data.deleted} bản ghi)!`, 'success')
+    deleteModal.value.isOpen = false
+    await fetchBatches(false)
+    await fetchGoldTypes()
+  } catch (err) {
+    console.error('Lỗi khi xóa đợt giá:', err)
+    showToast('Xóa đợt giá thất bại: ' + (err.response?.data?.message || err.message), 'danger')
+  } finally {
+    deleteModal.value.isDeleting = false
+  }
+}
+
 // Server-Sent Events (SSE) Real-time Auto-Reload
 function initSSE() {
   if (typeof(EventSource) === 'undefined') {
@@ -249,3 +298,4 @@ onUnmounted(() => {
   }
 })
 </script>
+
