@@ -139,3 +139,49 @@ async def test_admin_system_and_permissions(client: AsyncClient):
     )
     assert res_demote.status_code == 200
     assert res_demote.json()["role"] == "USER"
+
+    # 17. Admin locks user account
+    res_lock = await client.patch(
+        f"/api/v1/users/{user_id}/lock",
+        json={"is_locked": True},
+        headers=admin_headers
+    )
+    assert res_lock.status_code == 200
+    assert res_lock.json()["is_locked"] is True
+
+    # 18. Locked user attempts to login -> 403 Forbidden
+    res_locked_login = await client.post("/api/v1/auth/login", json={
+        "username_or_email": user_payload["username"],
+        "password": user_payload["password"]
+    })
+    assert res_locked_login.status_code == 403
+
+    # 19. Locked user attempts to use old token -> 403 Forbidden
+    res_locked_me = await client.get("/api/v1/auth/me", headers=user_headers)
+    assert res_locked_me.status_code == 403
+
+    # 20. Admin cannot lock themselves -> 400 Bad Request
+    admin_id = res_admin_login.json()["user"]["id"]
+    res_self_lock = await client.patch(
+        f"/api/v1/users/{admin_id}/lock",
+        json={"is_locked": True},
+        headers=admin_headers
+    )
+    assert res_self_lock.status_code == 400
+
+    # 21. Admin unlocks user account
+    res_unlock = await client.patch(
+        f"/api/v1/users/{user_id}/lock",
+        json={"is_locked": False},
+        headers=admin_headers
+    )
+    assert res_unlock.status_code == 200
+    assert res_unlock.json()["is_locked"] is False
+
+    # 22. User can login again successfully
+    res_login_again = await client.post("/api/v1/auth/login", json={
+        "username_or_email": user_payload["username"],
+        "password": user_payload["password"]
+    })
+    assert res_login_again.status_code == 200
+

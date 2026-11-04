@@ -31,6 +31,18 @@ class ConnectionManager:
     def is_user_online(self, user_id: str) -> bool:
         return user_id in self.active_connections and len(self.active_connections[user_id]) > 0
 
+    async def disconnect_user(self, user_id: str):
+        """Đóng toàn bộ WebSocket và ngắt kết nối của người dùng bị khóa."""
+        if user_id in self.active_connections:
+            sockets = list(self.active_connections[user_id])
+            for ws in sockets:
+                try:
+                    await ws.close(code=1008)
+                except Exception:
+                    pass
+            self.active_connections.pop(user_id, None)
+            logger.info(f"User {user_id} force disconnected (account locked).")
+
     async def send_personal_message(self, message: dict[str, Any], user_id: str):
         """Sends a JSON message to all active sessions of a single user."""
         if user_id in self.active_connections:

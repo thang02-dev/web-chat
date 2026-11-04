@@ -120,6 +120,34 @@ class UserService:
         return target_user
 
     @staticmethod
+    async def toggle_user_lock(
+        db: AsyncSession,
+        target_user_id: str,
+        is_locked: bool,
+        current_admin_id: str
+    ) -> User:
+        if target_user_id == current_admin_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Bạn không thể tự khóa tài khoản của chính mình."
+            )
+
+        target_user = await UserService.get_by_id(db, target_user_id)
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Người dùng cần khóa/mở khóa không tồn tại."
+            )
+
+        target_user.is_locked = is_locked
+        if is_locked:
+            target_user.is_online = False
+
+        await db.commit()
+        await db.refresh(target_user)
+        return target_user
+
+    @staticmethod
     async def get_user_stats(db: AsyncSession) -> Dict[str, int]:
         total_res = await db.execute(select(func.count(User.id)))
         total_users = total_res.scalar_one_or_none() or 0
@@ -132,10 +160,14 @@ class UserService:
         online_res = await db.execute(select(func.count(User.id)).where(User.is_online == True))
         online_users = online_res.scalar_one_or_none() or 0
 
+        locked_res = await db.execute(select(func.count(User.id)).where(User.is_locked == True))
+        locked_count = locked_res.scalar_one_or_none() or 0
+
         return {
             "total_users": total_users,
             "online_users": online_users,
             "admin_count": admin_count,
-            "user_count": user_count
+            "user_count": user_count,
+            "locked_count": locked_count
         }
 

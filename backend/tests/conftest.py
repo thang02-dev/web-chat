@@ -27,6 +27,13 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
 
 app.dependency_overrides[get_db] = override_get_db
 
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def init_test_db():
+    from sqlalchemy import text
+    async with test_engine.begin() as conn:
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'USER' NOT NULL;"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE NOT NULL;"))
+
 @pytest_asyncio.fixture(scope="session")
 async def client() -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app)

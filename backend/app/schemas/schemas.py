@@ -19,6 +19,7 @@ class UserLogin(BaseModel):
 class UserResponse(UserBase):
     id: str
     role: str = "USER"
+    is_locked: bool = False
     is_online: bool = False
     last_seen: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -28,11 +29,15 @@ class UserResponse(UserBase):
 class UserRoleUpdate(BaseModel):
     role: str = Field(..., pattern=r"^(ADMIN|USER)$", description="Chỉ chấp nhận ADMIN hoặc USER")
 
+class UserLockUpdate(BaseModel):
+    is_locked: bool
+
 class UserStatsResponse(BaseModel):
     total_users: int
     online_users: int
     admin_count: int
     user_count: int
+    locked_count: int = 0
 
 # --- Auth Schemas ---
 class Token(BaseModel):

@@ -61,6 +61,12 @@ class AuthService:
                 detail="Thông tin đăng nhập không chính xác (sai username/email hoặc mật khẩu)."
             )
 
+        if getattr(user, "is_locked", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Tài khoản của bạn đã bị khóa bởi Quản trị viên. Vui lòng liên hệ hỗ trợ."
+            )
+
         access_token = create_access_token(user.id)
         refresh_token = create_refresh_token(user.id)
 
@@ -83,6 +89,12 @@ class AuthService:
         user = await UserService.get_by_id(db, user_id)
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Người dùng không tồn tại.")
+
+        if getattr(user, "is_locked", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Tài khoản của bạn đã bị khóa."
+            )
 
         new_access = create_access_token(user.id)
         new_refresh = create_refresh_token(user.id)
@@ -115,6 +127,11 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tài khoản người dùng không tồn tại."
+        )
+    if getattr(user, "is_locked", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tài khoản của bạn đã bị khóa bởi Quản trị viên."
         )
     return user
 

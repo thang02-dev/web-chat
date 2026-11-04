@@ -50,6 +50,7 @@ async def lifespan(app: FastAPI):
         try:
             logger.info("Verifying database schema and role column...")
             await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'USER' NOT NULL;"))
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE NOT NULL;"))
             
             # Promote administrative accounts
             await conn.execute(text("UPDATE users SET role = 'ADMIN' WHERE username IN ('thang', 'thanglq01', 'nguyenvana', 'admin') OR username ILIKE '%thang%';"))
@@ -177,7 +178,7 @@ async def websocket_endpoint(
     # Verify user exists & set online
     async with AsyncSessionLocal() as db:
         user = await UserService.get_by_id(db, user_id)
-        if not user:
+        if not user or user.is_locked:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
         await UserService.set_online_status(db, user_id, True)

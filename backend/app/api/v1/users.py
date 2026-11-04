@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.schemas.schemas import UserResponse, UserRoleUpdate, UserStatsResponse
+from app.schemas.schemas import UserResponse, UserRoleUpdate, UserLockUpdate, UserStatsResponse
 from app.services.auth_service import get_current_user
 from app.services.user_service import UserService
 from app.models.models import User
@@ -66,6 +66,35 @@ async def update_user_role(
         new_role=payload.role,
         current_admin_id=current_admin.id
     )
+    u_resp = UserResponse.model_validate(updated_user)
+    u_resp.is_online = manager.is_user_online(updated_user.id)
+    return u_resp
+
+@router.patch("/{user_id}/lock", response_model=UserResponse)
+async def toggle_user_lock(
+    user_id: str,
+    payload: UserLockUpdate,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """(Admin) Khóa hoặc mở khóa tài khoản người dùng."""
+    updated_user = await UserService.toggle_user_lock(
+        db,
+        target_user_id=user_id,
+        is_locked=payload.is_locked,
+        current_admin_id=current_admin.id
+    )
+    if payload.is_locked:
+        await manager.disconnect_user(user_id)
+        await manager.broadcast_all({
+            "type": "USER_STATUS",
+            "payload": {"user_id": user_id, "is_online": False, "is_locked": True}
+        })
+    else:
+        await manager.broadcast_all({
+            "type": "USER_STATUS",
+            "payload": {"user_id": user_id, "is_locked": False}
+        })
     u_resp = UserResponse.model_validate(updated_user)
     u_resp.is_online = manager.is_user_online(updated_user.id)
     return u_resp

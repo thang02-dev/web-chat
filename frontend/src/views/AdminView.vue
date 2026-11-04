@@ -81,6 +81,19 @@
             <div class="stat-label">Người dùng thường</div>
           </div>
         </div>
+
+        <div class="stat-card">
+          <div class="stat-icon locked">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <div class="stat-details">
+            <div class="stat-value">{{ stats.locked_count || 0 }}</div>
+            <div class="stat-label">Tài khoản bị khóa</div>
+          </div>
+        </div>
       </section>
 
       <!-- Action & Filter Bar -->
@@ -117,6 +130,7 @@
               <option value="">Tất cả trạng thái</option>
               <option value="online">Trực tuyến</option>
               <option value="offline">Ngoại tuyến</option>
+              <option value="locked">Bị khóa</option>
             </select>
           </div>
 
@@ -190,7 +204,10 @@
               <!-- Status -->
               <td>
                 <div class="status-cell">
-                  <span :class="['status-badge', u.is_online ? 'badge-online' : 'badge-offline']">
+                  <span v-if="u.is_locked" class="status-badge badge-locked">
+                    🔒 Đã khóa
+                  </span>
+                  <span v-else :class="['status-badge', u.is_online ? 'badge-online' : 'badge-offline']">
                     {{ u.is_online ? 'Trực tuyến' : 'Ngoại tuyến' }}
                   </span>
                   <span v-if="!u.is_online && u.last_seen" class="last-seen">
@@ -225,6 +242,27 @@
                     @click="confirmRoleChange(u, 'USER')"
                   >
                     <span>👤 Chuyển Người dùng</span>
+                  </button>
+
+                  <!-- Lock / Unlock Button -->
+                  <button
+                    v-if="!u.is_locked"
+                    class="btn-action btn-lock"
+                    :disabled="actionLoadingId === u.id || u.id === authStore.user?.id"
+                    :title="u.id === authStore.user?.id ? 'Không thể tự khóa tài khoản của chính mình' : 'Khóa tài khoản này'"
+                    @click="confirmLockToggle(u, true)"
+                  >
+                    <span>🔒 Khóa</span>
+                  </button>
+
+                  <button
+                    v-else
+                    class="btn-action btn-unlock"
+                    :disabled="actionLoadingId === u.id"
+                    title="Mở khóa tài khoản"
+                    @click="confirmLockToggle(u, false)"
+                  >
+                    <span>🔓 Mở khóa</span>
                   </button>
                 </div>
               </td>
@@ -265,6 +303,42 @@
       </div>
     </div>
 
+    <!-- Confirmation Modal for Lock / Unlock -->
+    <div v-if="showLockModal" class="modal-backdrop" @click.self="showLockModal = false">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 :class="{ 'text-danger': pendingLockState }">
+            {{ pendingLockState ? '🔒 Xác nhận khóa tài khoản' : '🔓 Xác nhận mở khóa tài khoản' }}
+          </h3>
+          <button class="close-btn" @click="showLockModal = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <p v-if="pendingLockState">
+            Bạn có chắc chắn muốn <strong>khóa</strong> tài khoản của
+            <strong>{{ targetUser?.full_name }} (@{{ targetUser?.username }})</strong> không?
+          </p>
+          <p v-else>
+            Bạn có chắc chắn muốn <strong>mở khóa</strong> cho tài khoản của
+            <strong>{{ targetUser?.full_name }} (@{{ targetUser?.username }})</strong> không?
+          </p>
+          <p v-if="pendingLockState" class="warning-text">
+            ⚠️ <strong>Lưu ý:</strong> Tài khoản này sẽ bị ngắt kết nối ngay lập tức và không thể đăng nhập vào ứng dụng cho đến khi được mở khóa.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showLockModal = false">Hủy bỏ</button>
+          <button
+            :class="['btn', pendingLockState ? 'btn-danger' : 'btn-success']"
+            :disabled="!!actionLoadingId"
+            @click="executeLockToggle"
+          >
+            <span v-if="actionLoadingId" class="spinner-small"></span>
+            <span>{{ pendingLockState ? 'Khóa tài khoản' : 'Mở khóa ngay' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div v-if="toast.show" :class="['toast-alert', toast.type]">
       <span>{{ toast.message }}</span>
@@ -288,7 +362,8 @@ const stats = ref({
   total_users: 0,
   online_users: 0,
   admin_count: 0,
-  user_count: 0
+  user_count: 0,
+  locked_count: 0
 })
 
 const loading = ref(false)
@@ -301,6 +376,10 @@ const actionLoadingId = ref(null)
 const showConfirmModal = ref(false)
 const targetUser = ref(null)
 const pendingRole = ref('')
+
+// Lock Confirmation Modal State
+const showLockModal = ref(false)
+const pendingLockState = ref(false)
 
 // Toast Notification
 const toast = ref({
@@ -369,8 +448,9 @@ async function refreshAll() {
 const filteredUsers = computed(() => {
   if (!selectedStatus.value) return users.value
   return users.value.filter(u => {
-    if (selectedStatus.value === 'online') return u.is_online
-    if (selectedStatus.value === 'offline') return !u.is_online
+    if (selectedStatus.value === 'locked') return u.is_locked
+    if (selectedStatus.value === 'online') return u.is_online && !u.is_locked
+    if (selectedStatus.value === 'offline') return !u.is_online && !u.is_locked
     return true
   })
 })
@@ -419,26 +499,52 @@ async function executeRoleChange() {
   }
 }
 
+function confirmLockToggle(user, lockState) {
+  targetUser.value = user
+  pendingLockState.value = lockState
+  showLockModal.value = true
+}
+
+async function executeLockToggle() {
+  if (!targetUser.value) return
+  actionLoadingId.value = targetUser.value.id
+
+  try {
+    const res = await api.patch(`/users/${targetUser.value.id}/lock`, {
+      is_locked: pendingLockState.value
+    })
+
+    const idx = users.value.findIndex(u => u.id === targetUser.value.id)
+    if (idx !== -1) {
+      users.value[idx] = res.data
+    }
+
+    showToast(
+      pendingLockState.value
+        ? `Đã khóa tài khoản ${targetUser.value.full_name}.`
+        : `Đã mở khóa tài khoản ${targetUser.value.full_name}.`
+    )
+    await loadStats()
+  } catch (err) {
+    showToast(err.response?.data?.detail || 'Không thể thay đổi trạng thái khóa tài khoản.', 'error')
+  } finally {
+    actionLoadingId.value = null
+    showLockModal.value = false
+  }
+}
+
 function formatDate(isoString) {
   if (!isoString) return '--'
   const date = new Date(isoString)
-  return date.toLocaleString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  const pad = n => String(n).padStart(2, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`
 }
 
 function formatLastSeen(isoString) {
   if (!isoString) return ''
   const date = new Date(isoString)
-  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000)
-  if (diffSec < 60) return 'Vừa mới đây'
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} phút trước`
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} giờ trước`
-  return date.toLocaleDateString('vi-VN')
+  const pad = n => String(n).padStart(2, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`
 }
 
 onMounted(async () => {
@@ -634,6 +740,11 @@ onMounted(async () => {
 .stat-icon.regular {
   background: rgba(148, 163, 184, 0.15);
   color: #cbd5e1;
+}
+
+.stat-icon.locked {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
 }
 
 .stat-value {
@@ -929,6 +1040,12 @@ onMounted(async () => {
   color: #94a3b8;
 }
 
+.badge-locked {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
 .last-seen {
   font-size: 0.6875rem;
   color: var(--text-muted);
@@ -981,6 +1098,30 @@ onMounted(async () => {
   background: #dc2626;
   color: #fff;
   border-color: #dc2626;
+}
+
+.btn-lock {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.btn-lock:hover:not(:disabled) {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.btn-unlock {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.btn-unlock:hover:not(:disabled) {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
 }
 
 .btn-action:disabled {
@@ -1103,6 +1244,44 @@ onMounted(async () => {
   padding: 0.5rem 1rem;
   border-radius: 0.375rem;
   cursor: pointer;
+}
+
+.text-danger {
+  color: #ef4444;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.btn-success {
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #15803d;
 }
 
 /* Toast */
