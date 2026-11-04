@@ -29,6 +29,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
+      path: '/gold',
+      name: 'gold',
+      component: () => import('@/views/GoldView.vue'),
+      meta: { public: true }
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/'
     }

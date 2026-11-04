@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Text, ForeignKey, Index, func
+    Column, String, Boolean, DateTime, Text, ForeignKey, Index, BigInteger, Numeric, func
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -76,4 +76,21 @@ class Message(Base):
     __table_args__ = (
         Index("ix_messages_conv_created", "conversation_id", created_at.desc()),
     )
+
+class GoldPriceHistory(Base):
+    __tablename__ = "gold_price_history"
+
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    gold_type = Column(String(100), nullable=False, index=True)
+    buy_price = Column(Numeric(15, 2), nullable=False)
+    sell_price = Column(Numeric(15, 2), nullable=False)
+    price_date = Column(String(50), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    __table_args__ = (
+        Index("ix_gold_type_updated", "gold_type", "updated_at"),
+    )
+
+    def __repr__(self):
+        return f"<GoldPriceHistory id={self.id} type={self.gold_type} buy={self.buy_price} sell={self.sell_price} updated={self.updated_at}>"
 

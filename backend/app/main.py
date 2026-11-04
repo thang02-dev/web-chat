@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, status, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, status, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -8,18 +8,37 @@ import json
 import logging
 import uuid
 import traceback
+import asyncio
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal, engine, Base
+from app.core.database import AsyncSessionLocal, engine, Base, get_db
 from app.core.security import decode_token, hash_password
 from app.websocket.manager import manager
 from app.services.user_service import UserService
 from app.services.chat_service import ChatService
-from app.api.v1 import auth, users, conversations
+from app.services.gold_service import gold_price_service
+from app.api.v1 import auth, users, conversations, gold
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("main")
+
+async def scheduled_gold_crawl_loop():
+    logger.info("Background gold price crawler loop initialized.")
+    await asyncio.sleep(5)  # Let startup finish
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                saved = await gold_price_service.crawl_and_save_changed_prices(db)
+                if saved > 0:
+                    logger.info(f"=== [Gold Scheduler] Đã lưu {saved} bản ghi mới có biến động giá. ===")
+                else:
+                    logger.debug("=== [Gold Scheduler] Quét xong: không có biến động giá. ===")
+        except Exception as e:
+            logger.error(f"=== [Gold Scheduler] Lỗi crawl định kỳ: {e} ===")
+        await asyncio.sleep(600)  # 10 minutes
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,12 +72,38 @@ async def lifespan(app: FastAPI):
                          "VALUES (:id, 'admin', 'admin@gmail.com', :pwd_hash, 'Administrator', 'https://api.dicebear.com/7.x/bottts/svg?seed=admin', 'ADMIN', false, NOW());"),
                     {"id": admin_id, "pwd_hash": pwd_hash}
                 )
-            logger.info("Admin account and schema verification completed successfully.")
+
+            # Ensure gold_price_history table & indices exist
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS gold_price_history (
+                    id BIGSERIAL PRIMARY KEY,
+                    gold_type VARCHAR(100) NOT NULL,
+                    buy_price NUMERIC(15, 2) NOT NULL,
+                    sell_price NUMERIC(15, 2) NOT NULL,
+                    price_date VARCHAR(50),
+                    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ix_gold_price_history_gold_type ON gold_price_history (gold_type);
+                CREATE INDEX IF NOT EXISTS ix_gold_price_history_updated_at ON gold_price_history (updated_at);
+            """))
+
+            logger.info("Database self-healing verification completed successfully.")
         except Exception as e:
             logger.error(f"Error during schema verification: {e}")
 
-    logger.info("Database schemas initialized.")
+    # Launch background gold crawler task
+    crawler_task = asyncio.create_task(scheduled_gold_crawl_loop())
+    logger.info("Database schemas initialized and background gold crawler started.")
+
     yield
+
+    logger.info("Stopping background gold crawler...")
+    crawler_task.cancel()
+    try:
+        await crawler_task
+    except asyncio.CancelledError:
+        pass
+
     logger.info("Disposing engine connections...")
     await engine.dispose()
 
@@ -89,6 +134,13 @@ app.add_middleware(
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(conversations.router, prefix=settings.API_V1_STR)
+app.include_router(gold.router, prefix=settings.API_V1_STR)
+app.include_router(gold.router, prefix="/api")
+
+@app.post("/api/crawl", tags=["Gold Prices"])
+@app.post(f"{settings.API_V1_STR}/crawl", tags=["Gold Prices"])
+async def trigger_crawl_direct(db: AsyncSession = Depends(get_db)):
+    return await gold.trigger_crawl(db)
 
 @app.get("/api/health")
 async def health_check():

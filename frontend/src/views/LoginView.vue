@@ -42,6 +42,15 @@
           <span v-if="loading">Đang đăng nhập...</span>
           <span v-else>Đăng Nhập</span>
         </button>
+
+        <div class="gold-divider">
+          <span>HOẶC</span>
+        </div>
+
+        <button type="button" class="gold-nav-btn" @click="router.push('/gold')">
+          <span class="gold-icon">🪙</span>
+          <span>Bảng Giá Vàng Trực Tuyến</span>
+        </button>
       </form>
 
       <div class="auth-footer">
@@ -164,6 +173,57 @@ async function handleLogin() {
   width: 100%;
   margin-top: 0.5rem;
   padding: 0.75rem;
+}
+
+.gold-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 0.25rem 0;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.gold-divider::before,
+.gold-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gold-divider span {
+  padding: 0 0.75rem;
+}
+
+.gold-nav-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.12) 0%, rgba(193, 121, 0, 0.22) 100%);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  border-radius: 0.5rem;
+  color: #fde68a;
+  font-size: 0.925rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gold-nav-btn:hover {
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.25) 0%, rgba(193, 121, 0, 0.4) 100%);
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(245, 166, 35, 0.25);
+  color: #ffffff;
+}
+
+.gold-icon {
+  font-size: 1.1rem;
 }
 
 .auth-footer {

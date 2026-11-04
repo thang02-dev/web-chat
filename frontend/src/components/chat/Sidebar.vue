@@ -106,6 +106,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Bottom Gold Price Navigation -->
+    <div class="sidebar-gold-footer">
+      <button class="gold-price-sidebar-btn" @click="router.push('/gold')" title="Xem Bảng Giá Vàng Trực Tuyến">
+        <span class="gold-icon">🪙</span>
+        <span class="gold-text">Bảng Giá Vàng</span>
+        <span class="live-pill">LIVE</span>
+      </button>
+    </div>
   </aside>
 </template>
 
@@ -353,5 +362,64 @@ function formatSnippetTime(isoString) {
   .conv-snippet {
     max-width: 220px;
   }
+}
+
+.sidebar-gold-footer {
+  padding: 0.75rem 1rem;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  border-top: 1px solid var(--border-color);
+  background: rgba(15, 23, 42, 0.6);
+  flex-shrink: 0;
+}
+
+.gold-price-sidebar-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.65rem 0.85rem;
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.12) 0%, rgba(193, 121, 0, 0.22) 100%);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  border-radius: 0.5rem;
+  color: #fde68a;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gold-price-sidebar-btn:hover {
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.22) 0%, rgba(193, 121, 0, 0.38) 100%);
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 166, 35, 0.2);
+  color: #ffffff;
+}
+
+.gold-price-sidebar-btn .gold-icon {
+  font-size: 1.1rem;
+}
+
+.gold-price-sidebar-btn .gold-text {
+  flex: 1;
+  text-align: left;
+}
+
+.gold-price-sidebar-btn .live-pill {
+  font-size: 0.625rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #ef4444;
+  color: #ffffff;
+  letter-spacing: 0.05em;
+  animation: pulse-live 2s infinite;
+}
+
+@keyframes pulse-live {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
 }
 </style>
