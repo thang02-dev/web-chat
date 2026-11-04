@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine, Base, get_db
 from app.core.security import decode_token, hash_password
+from app.core.db_migration import run_database_migrations, verify_db_schema
 from app.websocket.manager import manager
 from app.services.user_service import UserService
 from app.services.chat_service import ChatService
@@ -28,67 +29,18 @@ logger = logging.getLogger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Initializing database schemas...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        
-        # Self-healing database migration for Cloud/Render environments
-        try:
-            logger.info("Verifying database schema and role column...")
-            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'USER' NOT NULL;"))
-            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE NOT NULL;"))
-            
-            # Ensure system_settings table exists
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS system_settings (
-                    key VARCHAR(50) PRIMARY KEY,
-                    value TEXT NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-                );
-            """))
-            
-            # Promote administrative accounts
-            await conn.execute(text("UPDATE users SET role = 'ADMIN' WHERE username IN ('thang', 'thanglq01', 'nguyenvana', 'admin') OR username ILIKE '%thang%';"))
-            
-            # Ensure standard admin account exists: admin / 123456 / admin@gmail.com
-            pwd_hash = hash_password("123456")
-            admin_id = str(uuid.uuid4())
-            await conn.execute(text("UPDATE users SET email = 'old_admin_' || id || '@gmail.com' WHERE email = 'admin@gmail.com' AND username != 'admin';"))
-            
-            res = await conn.execute(text("SELECT id FROM users WHERE username = 'admin';"))
-            existing = res.scalar_one_or_none()
-            if existing:
-                await conn.execute(
-                    text("UPDATE users SET email = 'admin@gmail.com', password_hash = :pwd_hash, role = 'ADMIN', full_name = 'Administrator' WHERE username = 'admin';"),
-                    {"pwd_hash": pwd_hash}
-                )
-            else:
-                await conn.execute(
-                    text("INSERT INTO users (id, username, email, password_hash, full_name, avatar_url, role, is_online, created_at) "
-                         "VALUES (:id, 'admin', 'admin@gmail.com', :pwd_hash, 'Administrator', 'https://api.dicebear.com/7.x/bottts/svg?seed=admin', 'ADMIN', false, NOW());"),
-                    {"id": admin_id, "pwd_hash": pwd_hash}
-                )
-
-            # Ensure gold_price_history table & indices exist
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS gold_price_history (
-                    id BIGSERIAL PRIMARY KEY,
-                    gold_type VARCHAR(100) NOT NULL,
-                    buy_price NUMERIC(15, 2) NOT NULL,
-                    sell_price NUMERIC(15, 2) NOT NULL,
-                    price_date VARCHAR(50),
-                    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS ix_gold_price_history_gold_type ON gold_price_history (gold_type);
-                CREATE INDEX IF NOT EXISTS ix_gold_price_history_updated_at ON gold_price_history (updated_at);
-            """))
-
-            logger.info("Database self-healing verification completed successfully.")
-        except Exception as e:
-            logger.error(f"Error during schema verification: {e}")
+    logger.info("Initializing database schemas & running self-healing migrations...")
+    try:
+        migration_report = await run_database_migrations()
+        logger.info(f"Database migration completed. Status: {migration_report.get('status')}")
+    except Exception as e:
+        logger.error(f"Error during database migration in lifespan: {e}\n{traceback.format_exc()}")
 
     # Initialize crawler settings from database
-    await crawler_manager.init_from_db()
+    try:
+        await crawler_manager.init_from_db()
+    except Exception as e:
+        logger.warning(f"Error initializing crawler settings from db: {e}")
 
     # Launch background gold crawler task
     crawler_task = asyncio.create_task(crawler_manager.run_loop())
@@ -106,24 +58,54 @@ async def lifespan(app: FastAPI):
     logger.info("Disposing engine connections...")
     await engine.dispose()
 
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     lifespan=lifespan
 )
 
+
+def _get_cors_headers(request: Request) -> dict:
+    """Helper ensuring CORS headers are included even on unhandled exceptions."""
+    origin = request.headers.get("origin")
+    if not origin:
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, Origin, User-Agent, DNT, Cache-Control, X-Mx-ReqToken, Keep-Alive, X-Requested-With, If-Modified-Since",
+    }
+
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    headers = dict(exc.headers or {})
+    headers.update(_get_cors_headers(request))
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=headers
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception on {request.method} {request.url}: {exc}\n{traceback.format_exc()}")
+    headers = _get_cors_headers(request)
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal Server Error: {str(exc)}"}
+        content={"detail": f"Internal Server Error: {str(exc)}"},
+        headers=headers
     )
 
-# CORS Middleware
+
+# CORS Middleware - allows origins and any https deployment previews
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -140,6 +122,20 @@ app.include_router(gold.router, prefix="/api")
 @app.post(f"{settings.API_V1_STR}/crawl", tags=["Gold Prices"])
 async def trigger_crawl_direct(db: AsyncSession = Depends(get_db)):
     return await gold.trigger_crawl(db)
+
+@app.get("/api/v1/system/migrate", tags=["System"])
+@app.post("/api/v1/system/migrate", tags=["System"])
+@app.get("/api/migrate", tags=["System"])
+@app.post("/api/migrate", tags=["System"])
+async def trigger_system_migrate():
+    """Manual self-healing database migration trigger."""
+    return await run_database_migrations()
+
+@app.get("/api/v1/system/db-status", tags=["System"])
+@app.get("/api/db-status", tags=["System"])
+async def get_db_status():
+    """Returns database tables and column health status."""
+    return await verify_db_schema()
 
 @app.get("/api/health")
 async def health_check():
@@ -174,12 +170,17 @@ async def websocket_endpoint(
         return
 
     # Verify user exists & set online
-    async with AsyncSessionLocal() as db:
-        user = await UserService.get_by_id(db, user_id)
-        if not user or user.is_locked:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        await UserService.set_online_status(db, user_id, True)
+    try:
+        async with AsyncSessionLocal() as db:
+            user = await UserService.get_by_id(db, user_id)
+            if not user or getattr(user, "is_locked", False):
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            await UserService.set_online_status(db, user_id, True)
+    except Exception as e:
+        logger.error(f"Error during websocket authentication check: {e}")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return
 
     # Register active websocket
     await manager.connect(websocket, user_id)
