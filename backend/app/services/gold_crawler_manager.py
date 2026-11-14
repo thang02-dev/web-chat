@@ -356,11 +356,14 @@ class GoldCrawlerManager:
 
             self.sender_username = admin_user.username
 
-            # 2. Kiểm tra tài khoản người nhận tồn tại
+            # 2. Kiểm tra tài khoản người nhận tồn tại và là Quản lý (ADMIN)
             target_res = await db.execute(select(User).where(User.id == self.notify_user_id))
             target_user = target_res.scalars().first()
             if not target_user:
                 logger.warning(f"Cannot send bot notification: Target user {self.notify_user_id} not found.")
+                return False
+            if target_user.role != "ADMIN":
+                logger.warning(f"Cannot send bot notification: Target user @{target_user.username} is not an ADMIN.")
                 return False
 
             # 3. Lấy hoặc tạo cuộc trò chuyện giữa admin và tài khoản được chọn

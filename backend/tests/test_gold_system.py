@@ -154,6 +154,11 @@ async def test_gold_bot_notification_modes_and_midnight_cleanup(client: AsyncCli
     monkeypatch.setattr(gold_crawler, "fetch_gold_prices", mock_fetch_gold_prices)
 
     async with TestAsyncSessionLocal() as db:
+        from sqlalchemy import update
+        # Thăng quyền người nhận lên ADMIN (vì chỉ Quản lý mới nhận thông báo lịch sử call)
+        await db.execute(update(User).where(User.id == recipient_id).values(role="ADMIN"))
+        await db.commit()
+
         # Đảm bảo dọn sạch tin nhắn bot cũ trước khi test
         await crawler_manager.cleanup_bot_messages(db=db)
 

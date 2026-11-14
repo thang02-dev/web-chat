@@ -40,6 +40,24 @@ async def init_test_db():
                 updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
             );
         """))
+    yield
+    # Dọn dẹp toàn bộ dữ liệu tạm sinh ra trong quá trình chạy pytest để không làm rác DB thực tế
+    async with test_engine.begin() as conn:
+        await conn.execute(text("""
+            DELETE FROM users
+            WHERE username LIKE 'user_%'
+               OR username LIKE 'chat_a_%'
+               OR username LIKE 'chat_b_%'
+               OR username LIKE 'ws_user_%'
+               OR username LIKE 'bot_recv_%';
+        """))
+        await conn.execute(text("""
+            DELETE FROM gold_price_history
+            WHERE gold_type LIKE 'Vàng Test %'
+               OR gold_type LIKE 'Vàng Xóa %'
+               OR gold_type LIKE 'Vàng Bot Test %'
+               OR gold_type LIKE 'Vàng 9999 %';
+        """))
 
 @pytest_asyncio.fixture(scope="session")
 async def client() -> AsyncGenerator[AsyncClient, None]:

@@ -604,7 +604,7 @@
 
           <!-- Recipient Account Selector -->
           <div class="notify-recipient-group">
-            <label class="setting-label" for="notify-recipient-select">Chọn tài khoản nhận tin lịch sử call:</label>
+            <label class="setting-label" for="notify-recipient-select">Chọn tài khoản Quản lý nhận tin lịch sử call:</label>
             <div class="recipient-select-wrap">
               <select
                 id="notify-recipient-select"
@@ -617,12 +617,12 @@
                   :key="u.id"
                   :value="u.id"
                 >
-                  {{ u.full_name }} (@{{ u.username }}) — {{ u.role === 'ADMIN' ? 'Quản lý' : 'Người dùng' }}
+                  🛡️ {{ u.full_name }} (@{{ u.username }}) — Quản lý
                 </option>
               </select>
             </div>
             <p class="input-hint">
-              📩 Chọn tài khoản sẽ nhận tin nhắn báo cáo trực tiếp từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong> trong hộp thư Chat.
+              📩 Chỉ hiển thị danh sách tài khoản <strong>Quản lý (ADMIN)</strong> để nhận tin nhắn báo cáo trực tiếp từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong>.
             </p>
           </div>
 
@@ -910,7 +910,7 @@ let crawlerPollTimer = null
 
 const recipientUserOptions = computed(() => {
   const sourceList = allUsersForSelect.value.length > 0 ? allUsersForSelect.value : users.value
-  return sourceList.filter(u => !u.is_locked)
+  return sourceList.filter(u => u.role === 'ADMIN' && !u.is_locked)
 })
 
 const hasConfigChanges = computed(() => {
@@ -965,6 +965,15 @@ function clearSearch() {
   loadUsers()
 }
 
+async function loadAdminRecipients() {
+  try {
+    const res = await api.get('/users/admin/list', { params: { role: 'ADMIN', limit: 200 } })
+    allUsersForSelect.value = res.data
+  } catch (err) {
+    console.error('Không thể tải danh sách quản lý nhận thông báo:', err)
+  }
+}
+
 async function loadUsers() {
   loading.value = true
   try {
@@ -974,9 +983,6 @@ async function loadUsers() {
 
     const res = await api.get('/users/admin/list', { params })
     users.value = res.data
-    if (!searchQuery.value.trim() && !selectedRole.value) {
-      allUsersForSelect.value = res.data
-    }
   } catch (err) {
     showToast(err.response?.data?.detail || 'Không thể tải danh sách người dùng.', 'error')
     if (err.response?.status === 403) {
@@ -988,7 +994,7 @@ async function loadUsers() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadStats(), loadUsers()])
+  await Promise.all([loadStats(), loadUsers(), loadAdminRecipients()])
   showToast('Đã làm mới dữ liệu người dùng.')
 }
 
@@ -1035,7 +1041,7 @@ async function executeRoleChange() {
     }
 
     showToast(`Đã cập nhật vai trò của ${targetUser.value.full_name} thành ${pendingRole.value === 'ADMIN' ? 'Quản lý' : 'Người dùng'}.`)
-    await loadStats()
+    await Promise.all([loadStats(), loadAdminRecipients()])
   } catch (err) {
     showToast(err.response?.data?.detail || 'Không thể cập nhật vai trò người dùng.', 'error')
   } finally {
@@ -1069,7 +1075,7 @@ async function executeLockToggle() {
         ? `Đã khóa tài khoản ${targetUser.value.full_name}.`
         : `Đã mở khóa tài khoản ${targetUser.value.full_name}.`
     )
-    await loadStats()
+    await Promise.all([loadStats(), loadAdminRecipients()])
   } catch (err) {
     showToast(err.response?.data?.detail || 'Không thể thay đổi trạng thái khóa tài khoản.', 'error')
   } finally {
@@ -1175,7 +1181,7 @@ function formatLastSeen(isoString) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadStats(), loadUsers(), loadCrawlerConfig(true)])
+  await Promise.all([loadStats(), loadUsers(), loadAdminRecipients(), loadCrawlerConfig(true)])
   crawlerPollTimer = setInterval(() => {
     if (currentTab.value === 'config' && !savingConfig.value && !isTriggeringCrawl.value) {
       loadCrawlerConfig(false)

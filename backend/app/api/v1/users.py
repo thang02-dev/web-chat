@@ -150,6 +150,19 @@ async def update_crawler_config(
     db: AsyncSession = Depends(get_db)
 ):
     """(Admin) Cập nhật chu kỳ quét, trạng thái bật/tắt và cấu hình gửi tin nhắn lịch sử call."""
+    if payload.notify_user_id and payload.notify_user_id.strip():
+        target_user = await UserService.get_by_id(db, payload.notify_user_id.strip())
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tài khoản nhận thông báo không tồn tại."
+            )
+        if target_user.role != "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chỉ được chọn tài khoản Quản lý (ADMIN) để nhận tin lịch sử call."
+            )
+
     await crawler_manager.save_settings(
         db,
         interval_minutes=payload.interval_minutes,
