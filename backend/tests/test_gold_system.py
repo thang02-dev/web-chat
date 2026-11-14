@@ -323,18 +323,35 @@ async def test_gold_bot_self_admin_recipient_and_cleanup_api(client: AsyncClient
 
     monkeypatch.setattr(gold_crawler, "fetch_gold_prices", mock_fetch)
 
-    # 1. Cấu hình người nhận là chính tài khoản admin
+    # 1. Tạo thêm 1 tài khoản Quản lý thứ 2 để kiểm tra chọn nhiều người nhận cùng lúc (notify_user_ids)
+    reg2 = await client.post("/api/v1/auth/register", json={
+        "username": f"bot_recv_multi_{suffix}",
+        "email": f"bot_recv_multi_{suffix}@example.com",
+        "password": "Password123!",
+        "full_name": f"Admin Nhận Tin 2 {suffix}"
+    })
+    assert reg2.status_code == 201
+    second_admin_id = reg2.json()["id"]
+    promote_res = await client.patch(
+        f"/api/v1/users/{second_admin_id}/role",
+        json={"role": "ADMIN"},
+        headers=admin_headers
+    )
+    assert promote_res.status_code == 200
+
+    # Cấu hình 2 tài khoản Quản lý cùng nhận tin lịch sử call
     cfg_res = await client.post(
         "/api/v1/users/admin/crawler-config",
         json={
             "interval_minutes": 10,
             "is_enabled": True,
-            "notify_user_id": admin_id,
+            "notify_user_ids": [admin_id, second_admin_id],
             "notify_mode": "ALWAYS"
         },
         headers=admin_headers
     )
     assert cfg_res.status_code == 200
+    assert cfg_res.json()["notify_user_ids"] == [admin_id, second_admin_id]
     assert cfg_res.json()["notify_user_id"] == admin_id
 
     # Kích hoạt quét lần 1 qua API admin (giá mới -> saved=1, tạo 1 tin có thay đổi)

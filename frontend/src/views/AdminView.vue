@@ -625,44 +625,130 @@
             </div>
           </div>
 
-          <!-- Recipient Account Selector -->
+          <!-- Recipient Account Selector (Multi-select + Search) -->
           <div class="notify-recipient-group">
-            <label class="setting-label" for="notify-recipient-select">Chọn tài khoản Quản lý nhận tin lịch sử call:</label>
-            <div class="recipient-select-wrap">
-              <select
-                id="notify-recipient-select"
-                v-model="formNotifyUserId"
-                class="notify-select"
-              >
-                <option value="">-- Không gửi tin nhắn thông báo (Tắt) --</option>
-                <option
-                  v-for="u in recipientUserOptions"
-                  :key="u.id"
-                  :value="u.id"
-                >
-                  🛡️ {{ u.full_name }} (@{{ u.username }}) — Quản lý
-                </option>
-              </select>
+            <div class="recipient-header-row">
+              <label class="setting-label">Chọn tài khoản Quản lý nhận tin lịch sử call (có thể chọn nhiều):</label>
+              <span :class="['recipient-count-badge', formNotifyUserIds.length > 0 ? 'has-selected' : 'none-selected']">
+                {{
+                  formNotifyUserIds.length > 0
+                    ? `Đã chọn ${formNotifyUserIds.length} Quản lý nhận tin`
+                    : 'Chưa chọn người nhận (Tắt gửi tin)'
+                }}
+              </span>
             </div>
+
+            <!-- Selected Recipient Chips -->
+            <div v-if="selectedRecipientUsers.length > 0" class="selected-recipients-chips">
+              <span
+                v-for="u in selectedRecipientUsers"
+                :key="'chip-' + u.id"
+                class="recipient-chip"
+              >
+                <span>🛡️ {{ u.full_name }} (@{{ u.username }})</span>
+                <button
+                  type="button"
+                  class="chip-remove-btn"
+                  title="Bỏ chọn tài khoản này"
+                  @click="removeRecipient(u.id)"
+                >
+                  ✕
+                </button>
+              </span>
+            </div>
+
+            <!-- Search & Multi-select Picker Box -->
+            <div class="recipient-picker-box">
+              <div class="recipient-picker-toolbar">
+                <div class="recipient-search-input-wrap">
+                  <svg class="recipient-search-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <input
+                    v-model="recipientSearchQuery"
+                    type="text"
+                    class="recipient-search-input"
+                    placeholder="Tìm nhanh Quản lý theo tên, @username hoặc email..."
+                  />
+                  <button
+                    v-if="recipientSearchQuery"
+                    type="button"
+                    class="recipient-search-clear"
+                    @click="recipientSearchQuery = ''"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div class="recipient-quick-actions">
+                  <button
+                    type="button"
+                    class="btn-recipient-quick"
+                    :disabled="filteredRecipientOptions.length === 0"
+                    @click="selectAllFilteredRecipients"
+                  >
+                    ✓ Chọn tất cả
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-recipient-quick btn-clear-all"
+                    :disabled="formNotifyUserIds.length === 0"
+                    @click="clearAllRecipients"
+                  >
+                    ✕ Bỏ chọn hết
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="filteredRecipientOptions.length === 0" class="recipient-empty-state">
+                Không tìm thấy tài khoản Quản lý (ADMIN) nào phù hợp với từ khóa "{{ recipientSearchQuery }}".
+              </div>
+
+              <div v-else class="recipient-options-list">
+                <label
+                  v-for="u in filteredRecipientOptions"
+                  :key="u.id"
+                  :class="['recipient-option-item', { selected: formNotifyUserIds.includes(u.id) }]"
+                >
+                  <input
+                    type="checkbox"
+                    :value="u.id"
+                    v-model="formNotifyUserIds"
+                  />
+                  <div class="recipient-option-info">
+                    <div class="recipient-option-main">
+                      <span class="recipient-shield">🛡️</span>
+                      <span class="recipient-fullname">{{ u.full_name }}</span>
+                      <span class="recipient-username">@{{ u.username }}</span>
+                      <span v-if="u.is_online" class="recipient-online-dot" title="Đang trực tuyến">● Online</span>
+                    </div>
+                    <span class="recipient-email">{{ u.email }}</span>
+                  </div>
+                  <span class="recipient-role-tag">Quản lý</span>
+                </label>
+              </div>
+            </div>
+
             <p class="input-hint">
-              📩 Chỉ hiển thị danh sách tài khoản <strong>Quản lý (ADMIN)</strong> để nhận tin nhắn báo cáo trực tiếp từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong>.
+              📩 Có thể tích chọn <strong>1 hoặc nhiều tài khoản Quản lý (ADMIN)</strong> để cùng nhận tin nhắn báo cáo trực tiếp từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong>.
             </p>
           </div>
 
           <!-- When to Send Selector (Radio Options) -->
-          <div class="notify-mode-group" :class="{ 'disabled-group': !formNotifyUserId }">
+          <div class="notify-mode-group" :class="{ 'disabled-group': formNotifyUserIds.length === 0 }">
             <label class="setting-label">Tích chọn khi nào gửi tin nhắn:</label>
             <div class="notify-mode-grid">
               <label
                 :class="['notify-mode-card', { active: formNotifyMode === 'ALWAYS' }]"
-                @click="formNotifyUserId && (formNotifyMode = 'ALWAYS')"
+                @click="formNotifyUserIds.length > 0 && (formNotifyMode = 'ALWAYS')"
               >
                 <input
                   type="radio"
                   name="notifyMode"
                   value="ALWAYS"
                   v-model="formNotifyMode"
-                  :disabled="!formNotifyUserId"
+                  :disabled="formNotifyUserIds.length === 0"
                 />
                 <div class="mode-card-content">
                   <span class="mode-card-title">🔔 Mỗi lần call để kiểm tra giá vàng</span>
@@ -672,14 +758,14 @@
 
               <label
                 :class="['notify-mode-card', { active: formNotifyMode === 'CHANGE_ONLY' }]"
-                @click="formNotifyUserId && (formNotifyMode = 'CHANGE_ONLY')"
+                @click="formNotifyUserIds.length > 0 && (formNotifyMode = 'CHANGE_ONLY')"
               >
                 <input
                   type="radio"
                   name="notifyMode"
                   value="CHANGE_ONLY"
                   v-model="formNotifyMode"
-                  :disabled="!formNotifyUserId"
+                  :disabled="formNotifyUserIds.length === 0"
                 />
                 <div class="mode-card-content">
                   <span class="mode-card-title">⚡ Chỉ khi giá thay đổi</span>
@@ -973,6 +1059,7 @@ const crawlerConfig = ref({
   last_crawl_message: '',
   next_crawl_at: null,
   notify_user_id: null,
+  notify_user_ids: [],
   notify_mode: 'ALWAYS',
   delete_changed_messages: false,
   sender_username: 'admin',
@@ -985,7 +1072,8 @@ const crawlerConfig = ref({
 const crawlerLoading = ref(false)
 const formInterval = ref(10)
 const formEnabled = ref(true)
-const formNotifyUserId = ref('')
+const formNotifyUserIds = ref([])
+const recipientSearchQuery = ref('')
 const formNotifyMode = ref('ALWAYS')
 const formDeleteChangedMessages = ref(false)
 const savingConfig = ref(false)
@@ -998,6 +1086,39 @@ const recipientUserOptions = computed(() => {
   return sourceList.filter(u => u.role === 'ADMIN' && !u.is_locked)
 })
 
+const filteredRecipientOptions = computed(() => {
+  const q = recipientSearchQuery.value.trim().toLowerCase().replace(/^@/, '')
+  if (!q) return recipientUserOptions.value
+  return recipientUserOptions.value.filter(u => {
+    return (
+      String(u.full_name || '').toLowerCase().includes(q) ||
+      String(u.username || '').toLowerCase().includes(q) ||
+      String(u.email || '').toLowerCase().includes(q)
+    )
+  })
+})
+
+const selectedRecipientUsers = computed(() => {
+  const mapById = new Map(recipientUserOptions.value.map(u => [u.id, u]))
+  return formNotifyUserIds.value.map(id => mapById.get(id)).filter(Boolean)
+})
+
+function removeRecipient(userId) {
+  formNotifyUserIds.value = formNotifyUserIds.value.filter(id => id !== userId)
+}
+
+function selectAllFilteredRecipients() {
+  const currentSet = new Set(formNotifyUserIds.value)
+  for (const u of filteredRecipientOptions.value) {
+    currentSet.add(u.id)
+  }
+  formNotifyUserIds.value = Array.from(currentSet)
+}
+
+function clearAllRecipients() {
+  formNotifyUserIds.value = []
+}
+
 const canCleanupNow = computed(() => {
   if (formDeleteChangedMessages.value) {
     return (crawlerConfig.value.bot_message_count || 0) > 0
@@ -1006,13 +1127,17 @@ const canCleanupNow = computed(() => {
 })
 
 const hasConfigChanges = computed(() => {
-  const currentNotifyUid = crawlerConfig.value.notify_user_id || ''
+  const savedIds = Array.isArray(crawlerConfig.value.notify_user_ids) && crawlerConfig.value.notify_user_ids.length > 0
+    ? crawlerConfig.value.notify_user_ids
+    : (crawlerConfig.value.notify_user_id ? [crawlerConfig.value.notify_user_id] : [])
+  const currentIdsKey = [...formNotifyUserIds.value].sort().join(',')
+  const savedIdsKey = [...savedIds].sort().join(',')
   const currentNotifyMode = crawlerConfig.value.notify_mode || 'ALWAYS'
   const currentDeleteChanged = Boolean(crawlerConfig.value.delete_changed_messages)
   return (
     formInterval.value !== crawlerConfig.value.interval_minutes ||
     formEnabled.value !== crawlerConfig.value.is_enabled ||
-    formNotifyUserId.value !== currentNotifyUid ||
+    currentIdsKey !== savedIdsKey ||
     formNotifyMode.value !== currentNotifyMode ||
     formDeleteChangedMessages.value !== currentDeleteChanged
   )
@@ -1191,8 +1316,8 @@ async function executeDeleteUser() {
   try {
     const res = await api.delete(`/users/${deletingUser.id}`)
     users.value = users.value.filter(u => u.id !== deletingUser.id)
-    if (formNotifyUserId.value === deletingUser.id) {
-      formNotifyUserId.value = ''
+    if (formNotifyUserIds.value.includes(deletingUser.id)) {
+      formNotifyUserIds.value = formNotifyUserIds.value.filter(id => id !== deletingUser.id)
       await loadCrawlerConfig(true)
     }
     showToast(res.data?.message || `Đã xóa tài khoản ${deletingUser.full_name} (@${deletingUser.username}).`)
@@ -1214,7 +1339,13 @@ async function loadCrawlerConfig(syncForm = true) {
     if (syncForm) {
       formInterval.value = res.data.interval_minutes
       formEnabled.value = res.data.is_enabled
-      formNotifyUserId.value = res.data.notify_user_id || ''
+      if (Array.isArray(res.data.notify_user_ids) && res.data.notify_user_ids.length > 0) {
+        formNotifyUserIds.value = [...res.data.notify_user_ids]
+      } else if (res.data.notify_user_id) {
+        formNotifyUserIds.value = [res.data.notify_user_id]
+      } else {
+        formNotifyUserIds.value = []
+      }
       formNotifyMode.value = res.data.notify_mode || 'ALWAYS'
       formDeleteChangedMessages.value = Boolean(res.data.delete_changed_messages)
     }
@@ -1236,12 +1367,15 @@ async function handleSaveConfig() {
     const res = await api.post('/users/admin/crawler-config', {
       interval_minutes: formInterval.value,
       is_enabled: formEnabled.value,
-      notify_user_id: formNotifyUserId.value || null,
+      notify_user_id: formNotifyUserIds.value[0] || null,
+      notify_user_ids: formNotifyUserIds.value,
       notify_mode: formNotifyMode.value,
       delete_changed_messages: formDeleteChangedMessages.value
     })
     crawlerConfig.value = res.data
-    formNotifyUserId.value = res.data.notify_user_id || ''
+    formNotifyUserIds.value = Array.isArray(res.data.notify_user_ids)
+      ? [...res.data.notify_user_ids]
+      : (res.data.notify_user_id ? [res.data.notify_user_id] : [])
     formNotifyMode.value = res.data.notify_mode || 'ALWAYS'
     formDeleteChangedMessages.value = Boolean(res.data.delete_changed_messages)
     showToast(`Đã lưu cấu hình: Quét ${res.data.interval_minutes} phút/lần (${res.data.is_enabled ? 'Bật' : 'Tạm dừng'})!`)
@@ -2319,28 +2453,260 @@ input:checked + .slider:before { transform: translateX(22px); }
 .notify-recipient-group {
   display: flex;
   flex-direction: column;
+  gap: 0.65rem;
+}
+
+.recipient-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.recipient-select-wrap {
-  max-width: 480px;
+.recipient-count-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  border-radius: 1rem;
 }
 
-.notify-select {
+.recipient-count-badge.has-selected {
+  background: rgba(34, 197, 94, 0.16);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.recipient-count-badge.none-selected {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+}
+
+.selected-recipients-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.recipient-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.6rem;
+  background: rgba(168, 85, 247, 0.16);
+  border: 1px solid rgba(168, 85, 247, 0.42);
+  border-radius: 1rem;
+  color: #e9d5ff;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.chip-remove-btn {
+  background: none;
+  border: none;
+  color: #c084fc;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  line-height: 1;
+}
+
+.chip-remove-btn:hover {
+  color: #f87171;
+}
+
+.recipient-picker-box {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 0.625rem;
+  overflow: hidden;
+  max-width: 680px;
+}
+
+.recipient-picker-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(15, 23, 42, 0.75);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+.recipient-search-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.recipient-search-icon {
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+}
+
+.recipient-search-input {
   width: 100%;
-  padding: 0.65rem 0.875rem;
+  padding: 0.45rem 1.8rem 0.45rem 2rem;
   background: var(--bg-dark);
   border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
+  border-radius: 0.45rem;
   color: #fff;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.8125rem;
   outline: none;
-  cursor: pointer;
 }
 
-.notify-select:focus {
+.recipient-search-input:focus {
   border-color: var(--primary);
+}
+
+.recipient-search-clear {
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.recipient-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-recipient-quick {
+  padding: 0.38rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.4rem;
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-recipient-quick:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.3);
+  color: #fff;
+}
+
+.btn-recipient-quick.btn-clear-all {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.btn-recipient-quick.btn-clear-all:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.28);
+  color: #fff;
+}
+
+.btn-recipient-quick:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.recipient-empty-state {
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.recipient-options-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.recipient-option-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.recipient-option-item:last-child {
+  border-bottom: none;
+}
+
+.recipient-option-item:hover {
+  background: rgba(51, 65, 85, 0.35);
+}
+
+.recipient-option-item.selected {
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.recipient-option-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #a855f7;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.recipient-option-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.recipient-option-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.recipient-fullname {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.recipient-username {
+  font-size: 0.78rem;
+  color: #c084fc;
+}
+
+.recipient-online-dot {
+  font-size: 0.68rem;
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.recipient-email {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.recipient-role-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.75rem;
+  background: rgba(168, 85, 247, 0.18);
+  color: #d8b4fe;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  flex-shrink: 0;
 }
 
 .notify-mode-group {

@@ -58,7 +58,8 @@ class DeleteBatchResult(BaseModel):
 class CrawlerConfigUpdate(BaseModel):
     interval_minutes: int = Field(10, ge=1, le=1440, description="Chu kỳ quét giá vàng tính theo phút (1 - 1440)")
     is_enabled: bool = Field(True, description="Trạng thái kích hoạt tự động quét")
-    notify_user_id: Optional[str] = Field(None, description="ID tài khoản nhận tin nhắn lịch sử call (None hoặc rỗng nếu tắt)")
+    notify_user_id: Optional[str] = Field(None, description="ID tài khoản nhận tin nhắn lịch sử call (tương thích đơn lẻ)")
+    notify_user_ids: Optional[List[str]] = Field(None, description="Danh sách ID các tài khoản Quản lý nhận tin nhắn lịch sử call")
     notify_mode: str = Field("ALWAYS", pattern=r"^(ALWAYS|CHANGE_ONLY)$", description="ALWAYS: Mỗi lần call | CHANGE_ONLY: Chỉ khi giá thay đổi")
     delete_changed_messages: bool = Field(
         False,
@@ -93,6 +94,7 @@ class CrawlerConfigResponse(BaseModel):
     last_crawl_message: str
     next_crawl_at: Optional[str] = None
     notify_user_id: Optional[str] = None
+    notify_user_ids: List[str] = Field(default_factory=list)
     notify_mode: str = "ALWAYS"
     delete_changed_messages: bool = False
     sender_username: str = "admin"

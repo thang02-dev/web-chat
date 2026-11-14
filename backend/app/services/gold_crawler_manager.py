@@ -58,6 +58,7 @@ class GoldCrawlerManager:
 
         # Cấu hình gửi tin nhắn lịch sử call từ Admin -> Tài khoản nhận
         self.notify_user_id: Optional[str] = None
+        self.notify_user_ids: List[str] = []
         self.notify_mode: str = "ALWAYS"  # "ALWAYS" (Mỗi lần call) | "CHANGE_ONLY" (Chỉ khi giá thay đổi)
         self.delete_changed_messages: bool = False  # False (Mặc định): Chỉ xóa tin giá không đổi | True: Xóa cả tin giá có thay đổi
         self.sender_username: str = "admin"
@@ -126,6 +127,24 @@ class GoldCrawlerManager:
                 if "crawler_notify_user_id" in settings_map:
                     val_uid = settings_map["crawler_notify_user_id"].strip()
                     self.notify_user_id = val_uid if val_uid else None
+
+                if "crawler_notify_user_ids" in settings_map:
+                    raw_uids = settings_map["crawler_notify_user_ids"].strip()
+                    parsed_uids: List[str] = []
+                    if raw_uids:
+                        try:
+                            loaded = json.loads(raw_uids)
+                            if isinstance(loaded, list):
+                                parsed_uids = [str(x).strip() for x in loaded if str(x).strip()]
+                        except Exception:
+                            parsed_uids = [x.strip() for x in raw_uids.split(",") if x.strip()]
+                    # Khử trùng lặp giữ nguyên thứ tự
+                    self.notify_user_ids = list(dict.fromkeys(parsed_uids))
+                    self.notify_user_id = self.notify_user_ids[0] if self.notify_user_ids else None
+                elif self.notify_user_id:
+                    self.notify_user_ids = [self.notify_user_id]
+                else:
+                    self.notify_user_ids = []
 
                 if "crawler_notify_mode" in settings_map:
                     val_mode = settings_map["crawler_notify_mode"].strip().upper()
@@ -263,17 +282,26 @@ class GoldCrawlerManager:
         is_enabled: bool,
         notify_user_id: Optional[str] = None,
         notify_mode: str = "ALWAYS",
-        delete_changed_messages: Optional[bool] = None
+        delete_changed_messages: Optional[bool] = None,
+        notify_user_ids: Optional[List[str]] = None
     ):
         """Lưu cấu hình mới vào DB và cập nhật runtime ngay lập tức."""
         clamped_interval = max(1, min(1440, interval_minutes))
-        clean_uid = notify_user_id.strip() if notify_user_id and notify_user_id.strip() else None
+        if notify_user_ids is not None:
+            cleaned_ids = list(dict.fromkeys([str(u).strip() for u in notify_user_ids if u and str(u).strip()]))
+        elif notify_user_id and notify_user_id.strip():
+            cleaned_ids = [notify_user_id.strip()]
+        else:
+            cleaned_ids = []
+
+        clean_uid = cleaned_ids[0] if cleaned_ids else None
         clean_mode = notify_mode.upper().strip() if notify_mode else "ALWAYS"
         if clean_mode not in ("ALWAYS", "CHANGE_ONLY"):
             clean_mode = "ALWAYS"
 
         self.interval_minutes = clamped_interval
         self.is_enabled = is_enabled
+        self.notify_user_ids = cleaned_ids
         self.notify_user_id = clean_uid
         self.notify_mode = clean_mode
         if delete_changed_messages is not None:
@@ -282,6 +310,7 @@ class GoldCrawlerManager:
         await self._upsert_setting(db, "crawler_interval_minutes", str(clamped_interval))
         await self._upsert_setting(db, "crawler_enabled", "true" if is_enabled else "false")
         await self._upsert_setting(db, "crawler_notify_user_id", clean_uid or "")
+        await self._upsert_setting(db, "crawler_notify_user_ids", json.dumps(cleaned_ids, ensure_ascii=False))
         await self._upsert_setting(db, "crawler_notify_mode", clean_mode)
         await self._upsert_setting(
             db,
@@ -368,11 +397,14 @@ class GoldCrawlerManager:
         msg: str
     ) -> bool:
         """
-        Gửi tin nhắn từ tài khoản admin tới tài khoản notify_user_id dựa trên cấu hình:
+        Gửi tin nhắn từ tài khoản admin tới danh sách tài khoản notify_user_ids dựa trên cấu hình:
         - notify_mode == 'ALWAYS': Gửi mỗi lần bot call để kiểm tra giá vàng
         - notify_mode == 'CHANGE_ONLY': Chỉ gửi khi giá thay đổi (saved > 0)
         """
-        if not self.notify_user_id:
+        recipient_ids = list(dict.fromkeys(
+            self.notify_user_ids if self.notify_user_ids else ([self.notify_user_id] if self.notify_user_id else [])
+        ))
+        if not recipient_ids:
             return False
 
         if self.notify_mode == "CHANGE_ONLY" and saved <= 0:
@@ -394,48 +426,48 @@ class GoldCrawlerManager:
                 return False
 
             self.sender_username = admin_user.username
-
-            # 2. Kiểm tra tài khoản người nhận tồn tại và là Quản lý (ADMIN)
-            target_res = await db.execute(select(User).where(User.id == self.notify_user_id))
-            target_user = target_res.scalars().first()
-            if not target_user:
-                logger.warning(f"Cannot send bot notification: Target user {self.notify_user_id} not found.")
-                return False
-            if target_user.role != "ADMIN":
-                logger.warning(f"Cannot send bot notification: Target user @{target_user.username} is not an ADMIN.")
-                return False
-
-            # 3. Lấy hoặc tạo cuộc trò chuyện giữa admin và tài khoản được chọn
-            conv = await ChatService.get_or_create_bot_conversation(db, admin_user.id, target_user.id)
-
-            # 4. Tạo nội dung và lưu tin nhắn với tiền tố phân biệt tin giá có thay đổi / không thay đổi
             content = self._build_notification_content(now_utc, source, status_str, saved, msg)
             prefix = BOT_CHANGED_TEMP_ID_PREFIX if saved > 0 else BOT_UNCHANGED_TEMP_ID_PREFIX
-            bot_temp_id = f"{prefix}{uuid.uuid4().hex}"
+            sent_any = False
 
-            msg_resp, member_ids = await ChatService.create_message(
-                db,
-                conversation_id=conv.id,
-                sender_id=admin_user.id,
-                content=content,
-                client_temp_id=bot_temp_id
-            )
+            # 2. Lặp qua từng tài khoản Quản lý được chọn để gửi tin nhắn báo cáo
+            for rid in recipient_ids:
+                target_res = await db.execute(select(User).where(User.id == rid))
+                target_user = target_res.scalars().first()
+                if not target_user:
+                    logger.warning(f"Cannot send bot notification: Target user {rid} not found.")
+                    continue
+                if target_user.role != "ADMIN":
+                    logger.warning(f"Cannot send bot notification: Target user @{target_user.username} is not an ADMIN.")
+                    continue
 
-            await self._refresh_bot_message_count(db)
+                conv = await ChatService.get_or_create_bot_conversation(db, admin_user.id, target_user.id)
+                bot_temp_id = f"{prefix}{uuid.uuid4().hex}"
 
-            # 5. Đẩy sự kiện WebSocket thời gian thực tới các thành viên cuộc trò chuyện
-            await manager.broadcast_to_users(
-                {
-                    "type": "NEW_MESSAGE",
-                    "payload": msg_resp.model_dump(mode="json")
-                },
-                member_ids
-            )
-            logger.info(
-                f"Sent gold crawl notification message from @{admin_user.username} "
-                f"to @{target_user.username} (mode={self.notify_mode}, saved={saved})."
-            )
-            return True
+                msg_resp, member_ids = await ChatService.create_message(
+                    db,
+                    conversation_id=conv.id,
+                    sender_id=admin_user.id,
+                    content=content,
+                    client_temp_id=bot_temp_id
+                )
+
+                await manager.broadcast_to_users(
+                    {
+                        "type": "NEW_MESSAGE",
+                        "payload": msg_resp.model_dump(mode="json")
+                    },
+                    member_ids
+                )
+                sent_any = True
+                logger.info(
+                    f"Sent gold crawl notification message from @{admin_user.username} "
+                    f"to @{target_user.username} (mode={self.notify_mode}, saved={saved})."
+                )
+
+            if sent_any:
+                await self._refresh_bot_message_count(db)
+            return sent_any
         except Exception as e:
             logger.error(f"Error sending crawl notification message: {e}", exc_info=True)
             return False
@@ -747,6 +779,7 @@ class GoldCrawlerManager:
             "last_crawl_message": self.last_crawl_message,
             "next_crawl_at": self.next_crawl_at.isoformat() if self.next_crawl_at else None,
             "notify_user_id": self.notify_user_id,
+            "notify_user_ids": list(self.notify_user_ids),
             "notify_mode": self.notify_mode,
             "delete_changed_messages": self.delete_changed_messages,
             "sender_username": self.sender_username,

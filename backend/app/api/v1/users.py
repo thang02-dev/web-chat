@@ -114,13 +114,16 @@ async def delete_user_account(
         current_admin_id=current_admin.id
     )
     await manager.disconnect_user(user_id)
-    if crawler_manager.notify_user_id == user_id:
+    if user_id in crawler_manager.notify_user_ids or crawler_manager.notify_user_id == user_id:
+        remaining_ids = [uid for uid in crawler_manager.notify_user_ids if uid != user_id]
         await crawler_manager.save_settings(
             db,
             interval_minutes=crawler_manager.interval_minutes,
             is_enabled=crawler_manager.is_enabled,
-            notify_user_id=None,
-            notify_mode=crawler_manager.notify_mode
+            notify_user_id=remaining_ids[0] if remaining_ids else None,
+            notify_mode=crawler_manager.notify_mode,
+            delete_changed_messages=crawler_manager.delete_changed_messages,
+            notify_user_ids=remaining_ids
         )
     return {
         "success": True,
@@ -177,12 +180,20 @@ async def update_crawler_config(
     db: AsyncSession = Depends(get_db)
 ):
     """(Admin) Cập nhật chu kỳ quét, trạng thái bật/tắt và cấu hình gửi tin nhắn lịch sử call."""
-    if payload.notify_user_id and payload.notify_user_id.strip():
-        target_user = await UserService.get_by_id(db, payload.notify_user_id.strip())
+    if payload.notify_user_ids is not None:
+        candidate_ids = [str(uid).strip() for uid in payload.notify_user_ids if uid and str(uid).strip()]
+    elif payload.notify_user_id and payload.notify_user_id.strip():
+        candidate_ids = [payload.notify_user_id.strip()]
+    else:
+        candidate_ids = []
+
+    validated_ids = list(dict.fromkeys(candidate_ids))
+    for uid in validated_ids:
+        target_user = await UserService.get_by_id(db, uid)
         if not target_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tài khoản nhận thông báo không tồn tại."
+                detail=f"Tài khoản nhận thông báo ({uid}) không tồn tại."
             )
         if target_user.role != "ADMIN":
             raise HTTPException(
@@ -194,9 +205,10 @@ async def update_crawler_config(
         db,
         interval_minutes=payload.interval_minutes,
         is_enabled=payload.is_enabled,
-        notify_user_id=payload.notify_user_id,
+        notify_user_id=validated_ids[0] if validated_ids else None,
         notify_mode=payload.notify_mode,
-        delete_changed_messages=payload.delete_changed_messages
+        delete_changed_messages=payload.delete_changed_messages,
+        notify_user_ids=validated_ids
     )
     return CrawlerConfigResponse(**crawler_manager.get_status())
 
