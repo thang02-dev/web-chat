@@ -290,3 +290,4 @@ async def run_database_migrations() -> Dict[str, Any]:
         "steps": results,
         "verification": verification,
     }
+

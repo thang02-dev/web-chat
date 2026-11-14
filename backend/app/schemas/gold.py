@@ -58,6 +58,8 @@ class DeleteBatchResult(BaseModel):
 class CrawlerConfigUpdate(BaseModel):
     interval_minutes: int = Field(10, ge=1, le=1440, description="Chu kỳ quét giá vàng tính theo phút (1 - 1440)")
     is_enabled: bool = Field(True, description="Trạng thái kích hoạt tự động quét")
+    notify_user_id: Optional[str] = Field(None, description="ID tài khoản nhận tin nhắn lịch sử call (None hoặc rỗng nếu tắt)")
+    notify_mode: str = Field("ALWAYS", pattern=r"^(ALWAYS|CHANGE_ONLY)$", description="ALWAYS: Mỗi lần call | CHANGE_ONLY: Chỉ khi giá thay đổi")
 
 
 class CrawlerLogItem(BaseModel):
@@ -79,6 +81,11 @@ class CrawlerConfigResponse(BaseModel):
     last_crawl_count: int
     last_crawl_message: str
     next_crawl_at: Optional[str] = None
+    notify_user_id: Optional[str] = None
+    notify_mode: str = "ALWAYS"
+    sender_username: str = "admin"
+    last_cleanup_date: Optional[str] = None
+    bot_message_count: int = 0
     recent_logs: List[CrawlerLogItem] = Field(default_factory=list)
 
 

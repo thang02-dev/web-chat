@@ -295,6 +295,18 @@ export const useChatStore = defineStore('chat', () => {
     return res.data
   }
 
+  async function handleBotMessagesCleared(payload) {
+    const convIds = payload?.conversation_ids || Object.keys(messagesByConv.value)
+    for (const cid of convIds) {
+      if (messagesByConv.value[cid]) {
+        messagesByConv.value[cid] = messagesByConv.value[cid].filter(
+          m => !m.client_temp_id || !String(m.client_temp_id).startsWith('gold_bot_')
+        )
+      }
+    }
+    await loadConversations()
+  }
+
   return {
     conversations,
     activeConversationId,
@@ -315,6 +327,7 @@ export const useChatStore = defineStore('chat', () => {
     handleTypingStatus,
     sendTyping,
     markAsRead,
-    openDirectChatWithUser
+    openDirectChatWithUser,
+    handleBotMessagesCleared
   }
 })

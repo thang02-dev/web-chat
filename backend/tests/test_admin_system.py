@@ -197,17 +197,43 @@ async def test_admin_system_and_permissions(client: AsyncClient):
     assert "is_enabled" in cfg
     assert "recent_logs" in cfg
 
-    # 25. Admin updates crawler interval to 5 minutes
+    # 25. Admin updates crawler interval to 5 minutes with notify settings
     res_update_crawler = await client.post(
         "/api/v1/users/admin/crawler-config",
-        json={"interval_minutes": 5, "is_enabled": True},
+        json={
+            "interval_minutes": 5,
+            "is_enabled": True,
+            "notify_user_id": user_id,
+            "notify_mode": "ALWAYS"
+        },
         headers=admin_headers
     )
     assert res_update_crawler.status_code == 200
-    assert res_update_crawler.json()["interval_minutes"] == 5
-    assert res_update_crawler.json()["is_enabled"] is True
+    updated_cfg = res_update_crawler.json()
+    assert updated_cfg["interval_minutes"] == 5
+    assert updated_cfg["is_enabled"] is True
+    assert updated_cfg["notify_user_id"] == user_id
+    assert updated_cfg["notify_mode"] == "ALWAYS"
+    assert updated_cfg["sender_username"] == "admin"
 
-    # 26. Public endpoint reflects 5 minutes
+    # 26. Edge case: Invalid notify_mode -> 422 Unprocessable Entity
+    res_invalid_mode = await client.post(
+        "/api/v1/users/admin/crawler-config",
+        json={
+            "interval_minutes": 10,
+            "is_enabled": True,
+            "notify_user_id": user_id,
+            "notify_mode": "SOMETIMES"
+        },
+        headers=admin_headers
+    )
+    assert res_invalid_mode.status_code == 422
+
+    # 27. Regular user forbidden from crawler cleanup endpoint -> 403 Forbidden
+    res_forbidden_cleanup = await client.post("/api/v1/users/admin/crawler-cleanup", headers=user_headers)
+    assert res_forbidden_cleanup.status_code == 403
+
+    # 28. Public endpoint reflects 5 minutes
     res_public_crawler = await client.get("/api/v1/prices/config")
     assert res_public_crawler.status_code == 200
     assert res_public_crawler.json()["interval_minutes"] == 5

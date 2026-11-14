@@ -62,6 +62,56 @@ class ChatService:
         return res.scalars().one()
 
     @staticmethod
+    async def get_or_create_bot_conversation(
+        db: AsyncSession,
+        sender_id: str,
+        recipient_id: str
+    ) -> Conversation:
+        """
+        Lấy hoặc tạo cuộc hội thoại 1-1 giữa tài khoản nguồn gửi (admin) và tài khoản nhận.
+        Hỗ trợ cả trường hợp recipient_id != sender_id lẫn trường hợp admin tự gửi cho chính mình.
+        """
+        if sender_id != recipient_id:
+            return await ChatService.get_or_create_direct_conversation(db, sender_id, recipient_id)
+
+        # Self-conversation cho trường hợp admin chọn chính tài khoản admin nhận thông báo
+        stmt = (
+            select(Conversation)
+            .where(Conversation.type == "DIRECT")
+            .join(ConversationMember, Conversation.id == ConversationMember.conversation_id)
+            .where(ConversationMember.user_id == sender_id)
+            .group_by(Conversation.id)
+            .having(func.count(ConversationMember.id) == 1)
+            .options(
+                selectinload(Conversation.members).selectinload(ConversationMember.user),
+                selectinload(Conversation.messages)
+            )
+        )
+        result = await db.execute(stmt)
+        conv = result.scalars().first()
+        if conv:
+            return conv
+
+        new_conv = Conversation(type="DIRECT", name="Thông báo Bot Giá Vàng")
+        db.add(new_conv)
+        await db.flush()
+
+        member_self = ConversationMember(conversation_id=new_conv.id, user_id=sender_id, role="MEMBER")
+        db.add(member_self)
+        await db.commit()
+
+        stmt = (
+            select(Conversation)
+            .where(Conversation.id == new_conv.id)
+            .options(
+                selectinload(Conversation.members).selectinload(ConversationMember.user),
+                selectinload(Conversation.messages)
+            )
+        )
+        res = await db.execute(stmt)
+        return res.scalars().one()
+
+    @staticmethod
     async def get_user_conversations(db: AsyncSession, user_id: str) -> List[ConversationResponse]:
         # Subquery: conversations where user is a member
         member_convs_stmt = select(ConversationMember.conversation_id).where(ConversationMember.user_id == user_id)
@@ -103,6 +153,10 @@ class ChatService:
                     current_member = m
                 elif conv.type == "DIRECT":
                     other_user_resp = m_user
+
+            if not other_user_resp and current_member and current_member.user:
+                other_user_resp = UserResponse.model_validate(current_member.user)
+                other_user_resp.is_online = manager.is_user_online(current_member.user.id)
 
             # Latest message
             last_msg = None

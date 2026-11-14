@@ -141,6 +141,8 @@ export const useSocketStore = defineStore('socket', () => {
           chatStore.handleTypingStatus(payload)
         } else if (type === 'NEW_CONVERSATION') {
           chatStore.loadConversations()
+        } else if (type === 'BOT_MESSAGES_CLEARED') {
+          chatStore.handleBotMessagesCleared(payload)
         }
       } catch (err) {
         console.warn('Socket message parse error:', err)

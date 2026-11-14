@@ -59,7 +59,7 @@ async def trigger_crawl(db: AsyncSession = Depends(get_db)):
     Lưu bản ghi mới khi có biến động giá và tự động phát tín hiệu SSE tới client.
     """
     try:
-        res = await crawler_manager.trigger_crawl(source="MANUAL")
+        res = await crawler_manager.trigger_crawl(source="MANUAL", db=db)
         return CrawlResult(saved=res["saved"], message=res["message"])
     except Exception as e:
         logger.error(f"Manual crawl failed: {e}", exc_info=True)

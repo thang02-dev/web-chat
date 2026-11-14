@@ -44,19 +44,30 @@ def get_sort_priority(gold_type: str) -> int:
 
 
 class GoldPriceService:
-    @staticmethod
-    async def crawl_and_save_changed_prices(db: AsyncSession) -> int:
+    def __init__(self):
+        self.last_scraped: List[GoldPriceDto] = []
+        self.last_changes: List[Dict] = []
+
+    async def crawl_and_save_with_details(self, db: AsyncSession) -> Dict:
         """
-        Crawls hieuvangtru.vn, detects price changes, and persists only changed rows.
-        Broadcasts SSE event if any changes were saved.
+        Crawls hieuvangtru.vn, detects price changes, persists only changed rows,
+        and returns detailed scrape & change metadata for audit and chat notification.
         """
         scraped = await gold_crawler.fetch_gold_prices()
+        self.last_scraped = list(scraped) if scraped else []
+        self.last_changes = []
+
         if not scraped:
             logger.warning("No data fetched from gold crawler; skipping persistence.")
-            return 0
+            return {
+                "saved_count": 0,
+                "scraped": [],
+                "changes": []
+            }
 
         batch_time = datetime.now(timezone.utc)
         saved_count = 0
+        changes: List[Dict] = []
 
         for dto in scraped:
             if not dto.gold_type or dto.buy_price is None or dto.sell_price is None:
@@ -73,6 +84,11 @@ class GoldPriceService:
             latest = res.scalar_one_or_none()
 
             should_save = False
+            old_buy = float(latest.buy_price) if latest and latest.buy_price is not None else None
+            old_sell = float(latest.sell_price) if latest and latest.sell_price is not None else None
+            new_buy = float(dto.buy_price)
+            new_sell = float(dto.sell_price)
+
             if latest is None:
                 logger.debug(f"First record for '{dto.gold_type}': will save.")
                 should_save = True
@@ -97,6 +113,17 @@ class GoldPriceService:
                 )
                 db.add(new_record)
                 saved_count += 1
+                changes.append({
+                    "gold_type": dto.gold_type,
+                    "old_buy": old_buy,
+                    "new_buy": new_buy,
+                    "old_sell": old_sell,
+                    "new_sell": new_sell,
+                    "buy_delta": (new_buy - old_buy) if old_buy is not None else None,
+                    "sell_delta": (new_sell - old_sell) if old_sell is not None else None,
+                })
+
+        self.last_changes = changes
 
         if saved_count > 0:
             await db.commit()
@@ -105,7 +132,19 @@ class GoldPriceService:
         else:
             logger.debug("Gold crawl cycle complete: 0 new record(s) saved.")
 
-        return saved_count
+        return {
+            "saved_count": saved_count,
+            "scraped": scraped,
+            "changes": changes
+        }
+
+    async def crawl_and_save_changed_prices(self, db: AsyncSession) -> int:
+        """
+        Crawls hieuvangtru.vn, detects price changes, and persists only changed rows.
+        Broadcasts SSE event if any changes were saved.
+        """
+        details = await self.crawl_and_save_with_details(db)
+        return details["saved_count"]
 
     @staticmethod
     async def delete_price_batch(db: AsyncSession, ids: List[int]) -> int:

@@ -579,11 +579,123 @@
             </p>
           </div>
 
+          <hr class="config-divider" />
+
+          <!-- Chat Notification Configuration Section -->
+          <div class="card-section-title">
+            <h3>💬 Thông Báo Lịch Sử Call Qua Tin Nhắn</h3>
+            <p>Mỗi khi bot thực hiện call kiểm tra giá vàng, hệ thống sẽ tự động gửi tin nhắn báo cáo kết quả từ tài khoản Admin tới tài khoản được chọn.</p>
+          </div>
+
+          <!-- Sender Account Info Row -->
+          <div class="notify-sender-box">
+            <div class="sender-label-group">
+              <span class="setting-label">Nguồn tài khoản gửi:</span>
+              <span class="sender-desc">Tài khoản hệ thống dùng để gửi thông báo lịch sử bot chạy.</span>
+            </div>
+            <div class="sender-badge">
+              <span class="sender-shield">🛡️</span>
+              <div class="sender-meta">
+                <span class="sender-title">Administrator</span>
+                <span class="sender-handle">@{{ crawlerConfig.sender_username || 'admin' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recipient Account Selector -->
+          <div class="notify-recipient-group">
+            <label class="setting-label" for="notify-recipient-select">Chọn tài khoản nhận tin lịch sử call:</label>
+            <div class="recipient-select-wrap">
+              <select
+                id="notify-recipient-select"
+                v-model="formNotifyUserId"
+                class="notify-select"
+              >
+                <option value="">-- Không gửi tin nhắn thông báo (Tắt) --</option>
+                <option
+                  v-for="u in recipientUserOptions"
+                  :key="u.id"
+                  :value="u.id"
+                >
+                  {{ u.full_name }} (@{{ u.username }}) — {{ u.role === 'ADMIN' ? 'Quản lý' : 'Người dùng' }}
+                </option>
+              </select>
+            </div>
+            <p class="input-hint">
+              📩 Chọn tài khoản sẽ nhận tin nhắn báo cáo trực tiếp từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong> trong hộp thư Chat.
+            </p>
+          </div>
+
+          <!-- When to Send Selector (Radio Options) -->
+          <div class="notify-mode-group" :class="{ 'disabled-group': !formNotifyUserId }">
+            <label class="setting-label">Tích chọn khi nào gửi tin nhắn:</label>
+            <div class="notify-mode-grid">
+              <label
+                :class="['notify-mode-card', { active: formNotifyMode === 'ALWAYS' }]"
+                @click="formNotifyUserId && (formNotifyMode = 'ALWAYS')"
+              >
+                <input
+                  type="radio"
+                  name="notifyMode"
+                  value="ALWAYS"
+                  v-model="formNotifyMode"
+                  :disabled="!formNotifyUserId"
+                />
+                <div class="mode-card-content">
+                  <span class="mode-card-title">🔔 Mỗi lần call để kiểm tra giá vàng</span>
+                  <span class="mode-card-desc">Gửi tin nhắn báo cáo sau mỗi lượt bot quét kiểm tra (kể cả khi giá vàng không thay đổi).</span>
+                </div>
+              </label>
+
+              <label
+                :class="['notify-mode-card', { active: formNotifyMode === 'CHANGE_ONLY' }]"
+                @click="formNotifyUserId && (formNotifyMode = 'CHANGE_ONLY')"
+              >
+                <input
+                  type="radio"
+                  name="notifyMode"
+                  value="CHANGE_ONLY"
+                  v-model="formNotifyMode"
+                  :disabled="!formNotifyUserId"
+                />
+                <div class="mode-card-content">
+                  <span class="mode-card-title">⚡ Chỉ khi giá thay đổi</span>
+                  <span class="mode-card-desc">Chỉ gửi tin nhắn báo cáo khi phát hiện giá Mua vào hoặc Bán ra có biến động mới.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Midnight 00:00 Auto Cleanup Info & Manual Cleanup Action -->
+          <div class="cleanup-policy-banner">
+            <div class="cleanup-info">
+              <div class="cleanup-title">
+                <span>🕛 Tự động dọn dẹp tin nhắn bot lúc 00:00 (0h đêm)</span>
+                <span class="bot-msg-counter">
+                  Đang lưu: <strong>{{ crawlerConfig.bot_message_count || 0 }}</strong> tin nhắn bot
+                </span>
+              </div>
+              <p class="cleanup-desc">
+                Những tin nhắn từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong> gửi đến tài khoản được chọn để báo cáo thông tin bot chạy sẽ được hệ thống <strong>tự động xóa toàn bộ vào đúng 00:00 hàng ngày</strong> (theo giờ Việt Nam) nhằm tránh lưu quá nhiều làm nặng Database.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn-cleanup-now"
+              :disabled="cleaningBotMessages || !crawlerConfig.bot_message_count"
+              @click="handleCleanupBotMessages"
+              title="Xóa ngay tất cả tin nhắn thông báo của bot trong DB"
+            >
+              <span v-if="cleaningBotMessages" class="spinner-small"></span>
+              <span v-else>🧹 Xóa tin nhắn bot ngay</span>
+            </button>
+          </div>
+
           <!-- Submit Settings Button -->
           <div class="settings-actions">
             <button
               class="btn-save-settings"
-              :disabled="savingConfig || (formInterval === crawlerConfig.interval_minutes && formEnabled === crawlerConfig.is_enabled)"
+              :disabled="savingConfig || !hasConfigChanges"
               @click="handleSaveConfig"
             >
               <span v-if="savingConfig" class="spinner-small"></span>
@@ -592,7 +704,7 @@
                 <polyline points="17 21 17 13 7 13 7 21"></polyline>
                 <polyline points="7 3 7 8 15 8"></polyline>
               </svg>
-              <span>{{ savingConfig ? 'Đang lưu...' : 'Lưu cấu hình chu kỳ' }}</span>
+              <span>{{ savingConfig ? 'Đang lưu...' : 'Lưu cấu hình' }}</span>
             </button>
           </div>
         </div>
@@ -732,7 +844,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
@@ -747,6 +859,7 @@ const currentTab = ref('users')
 
 // ==================== User Management State ====================
 const users = ref([])
+const allUsersForSelect = ref([])
 const stats = ref({
   total_users: 0,
   online_users: 0,
@@ -778,13 +891,38 @@ const crawlerConfig = ref({
   last_crawl_count: 0,
   last_crawl_message: '',
   next_crawl_at: null,
+  notify_user_id: null,
+  notify_mode: 'ALWAYS',
+  sender_username: 'admin',
+  last_cleanup_date: null,
+  bot_message_count: 0,
   recent_logs: []
 })
 const crawlerLoading = ref(false)
 const formInterval = ref(10)
 const formEnabled = ref(true)
+const formNotifyUserId = ref('')
+const formNotifyMode = ref('ALWAYS')
 const savingConfig = ref(false)
 const isTriggeringCrawl = ref(false)
+const cleaningBotMessages = ref(false)
+let crawlerPollTimer = null
+
+const recipientUserOptions = computed(() => {
+  const sourceList = allUsersForSelect.value.length > 0 ? allUsersForSelect.value : users.value
+  return sourceList.filter(u => !u.is_locked)
+})
+
+const hasConfigChanges = computed(() => {
+  const currentNotifyUid = crawlerConfig.value.notify_user_id || ''
+  const currentNotifyMode = crawlerConfig.value.notify_mode || 'ALWAYS'
+  return (
+    formInterval.value !== crawlerConfig.value.interval_minutes ||
+    formEnabled.value !== crawlerConfig.value.is_enabled ||
+    formNotifyUserId.value !== currentNotifyUid ||
+    formNotifyMode.value !== currentNotifyMode
+  )
+})
 
 // Toast
 const toast = ref({
@@ -836,6 +974,9 @@ async function loadUsers() {
 
     const res = await api.get('/users/admin/list', { params })
     users.value = res.data
+    if (!searchQuery.value.trim() && !selectedRole.value) {
+      allUsersForSelect.value = res.data
+    }
   } catch (err) {
     showToast(err.response?.data?.detail || 'Không thể tải danh sách người dùng.', 'error')
     if (err.response?.status === 403) {
@@ -938,13 +1079,17 @@ async function executeLockToggle() {
 }
 
 // ==================== Crawler API ====================
-async function loadCrawlerConfig() {
+async function loadCrawlerConfig(syncForm = true) {
   crawlerLoading.value = true
   try {
     const res = await api.get('/users/admin/crawler-config')
     crawlerConfig.value = res.data
-    formInterval.value = res.data.interval_minutes
-    formEnabled.value = res.data.is_enabled
+    if (syncForm) {
+      formInterval.value = res.data.interval_minutes
+      formEnabled.value = res.data.is_enabled
+      formNotifyUserId.value = res.data.notify_user_id || ''
+      formNotifyMode.value = res.data.notify_mode || 'ALWAYS'
+    }
   } catch (err) {
     console.error('Lỗi khi tải cấu hình crawler:', err)
   } finally {
@@ -962,9 +1107,13 @@ async function handleSaveConfig() {
   try {
     const res = await api.post('/users/admin/crawler-config', {
       interval_minutes: formInterval.value,
-      is_enabled: formEnabled.value
+      is_enabled: formEnabled.value,
+      notify_user_id: formNotifyUserId.value || null,
+      notify_mode: formNotifyMode.value
     })
     crawlerConfig.value = res.data
+    formNotifyUserId.value = res.data.notify_user_id || ''
+    formNotifyMode.value = res.data.notify_mode || 'ALWAYS'
     showToast(`Đã lưu cấu hình: Quét ${res.data.interval_minutes} phút/lần (${res.data.is_enabled ? 'Bật' : 'Tạm dừng'})!`)
   } catch (err) {
     showToast(err.response?.data?.detail || 'Không thể lưu cấu hình crawler.', 'error')
@@ -982,11 +1131,24 @@ async function handleTriggerManualCrawl() {
     } else {
       showToast(res.data.message || 'Quá trình quét giá không thành công.', 'error')
     }
-    await loadCrawlerConfig()
+    await loadCrawlerConfig(false)
   } catch (err) {
     showToast('Lỗi khi quét giá vàng: ' + (err.response?.data?.detail || err.message), 'error')
   } finally {
     isTriggeringCrawl.value = false
+  }
+}
+
+async function handleCleanupBotMessages() {
+  cleaningBotMessages.value = true
+  try {
+    const res = await api.post('/users/admin/crawler-cleanup')
+    showToast(res.data.message || 'Đã xóa sạch tin nhắn lịch sử bot!')
+    await loadCrawlerConfig(false)
+  } catch (err) {
+    showToast('Lỗi khi xóa tin nhắn bot: ' + (err.response?.data?.detail || err.message), 'error')
+  } finally {
+    cleaningBotMessages.value = false
   }
 }
 
@@ -1013,7 +1175,17 @@ function formatLastSeen(isoString) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadStats(), loadUsers(), loadCrawlerConfig()])
+  await Promise.all([loadStats(), loadUsers(), loadCrawlerConfig(true)])
+  crawlerPollTimer = setInterval(() => {
+    if (currentTab.value === 'config' && !savingConfig.value && !isTriggeringCrawl.value) {
+      loadCrawlerConfig(false)
+    }
+  }, 15000)
+})
+
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer)
+  clearInterval(crawlerPollTimer)
 })
 </script>
 
@@ -1946,6 +2118,230 @@ input:checked + .slider:before { transform: translateX(22px); }
   font-size: 0.75rem;
   color: var(--text-muted);
   margin: 0;
+}
+
+.config-divider {
+  border: none;
+  border-top: 1px solid rgba(51, 65, 85, 0.65);
+  margin: 0.5rem 0;
+}
+
+/* Chat Notification Settings */
+.notify-sender-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+  border-radius: 0.625rem;
+}
+
+.sender-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sender-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.sender-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.85rem;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 0.5rem;
+}
+
+.sender-shield {
+  font-size: 1.1rem;
+}
+
+.sender-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.sender-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #e9d5ff;
+}
+
+.sender-handle {
+  font-size: 0.7rem;
+  color: #c084fc;
+}
+
+.notify-recipient-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recipient-select-wrap {
+  max-width: 480px;
+}
+
+.notify-select {
+  width: 100%;
+  padding: 0.65rem 0.875rem;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+
+.notify-select:focus {
+  border-color: var(--primary);
+}
+
+.notify-mode-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  transition: opacity 0.2s ease;
+}
+
+.notify-mode-group.disabled-group {
+  opacity: 0.55;
+}
+
+.notify-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.notify-mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid var(--border-color);
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.notify-mode-card:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.notify-mode-card.active {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: #3b82f6;
+}
+
+.notify-mode-card input[type="radio"] {
+  margin-top: 0.2rem;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.mode-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mode-card-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.mode-card-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.cleanup-policy-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 0.625rem;
+}
+
+.cleanup-info {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cleanup-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.bot-msg-counter {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.15rem 0.55rem;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 1rem;
+  color: #fde68a;
+}
+
+.cleanup-desc {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.btn-cleanup-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 0.5rem;
+  color: #fca5a5;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-cleanup-now:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.28);
+  color: #fff;
+}
+
+.btn-cleanup-now:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .settings-actions {

@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI):
 
     # Launch background gold crawler task
     crawler_task = asyncio.create_task(crawler_manager.run_loop())
+    crawler_manager._task = crawler_task
     logger.info("Database schemas initialized and background gold crawler started.")
 
     yield
@@ -54,6 +55,7 @@ async def lifespan(app: FastAPI):
         await crawler_task
     except asyncio.CancelledError:
         pass
+    crawler_manager._task = None
 
     logger.info("Disposing engine connections...")
     await engine.dispose()
@@ -131,6 +133,16 @@ async def trigger_system_migrate():
     """Manual self-healing database migration trigger."""
     return await run_database_migrations()
 
+@app.middleware("http")
+async def keep_crawler_alive_middleware(request: Request, call_next):
+    host = request.url.hostname or ""
+    if host and host not in ("test", "localhost", "127.0.0.1", "0.0.0.0"):
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme or "https")
+        crawler_manager.register_public_url(f"{scheme}://{request.headers.get('host', host)}")
+        crawler_manager.ensure_scheduler_alive()
+    return await call_next(request)
+
+
 @app.get("/api/v1/system/db-status", tags=["System"])
 @app.get("/api/db-status", tags=["System"])
 async def get_db_status():
@@ -141,7 +153,11 @@ async def get_db_status():
 async def health_check():
     return {
         "status": "online",
-        "service": settings.PROJECT_NAME
+        "service": settings.PROJECT_NAME,
+        "crawler_enabled": crawler_manager.is_enabled,
+        "crawler_interval_minutes": crawler_manager.interval_minutes,
+        "last_crawl_at": crawler_manager.last_crawl_at.isoformat() if crawler_manager.last_crawl_at else None,
+        "next_crawl_at": crawler_manager.next_crawl_at.isoformat() if crawler_manager.next_crawl_at else None
     }
 
 @app.websocket("/ws")

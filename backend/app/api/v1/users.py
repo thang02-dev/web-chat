@@ -135,9 +135,11 @@ async def get_user_profile(
 
 @router.get("/admin/crawler-config", response_model=CrawlerConfigResponse)
 async def get_crawler_config(
-    current_admin: User = Depends(require_admin)
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
 ):
-    """(Admin) Lấy trạng thái, chu kỳ và lịch sử quét giá vàng của crawler."""
+    """(Admin) Lấy trạng thái, chu kỳ, cấu hình nhận tin và lịch sử quét giá vàng của crawler."""
+    await crawler_manager._refresh_bot_message_count(db)
     return CrawlerConfigResponse(**crawler_manager.get_status())
 
 
@@ -147,21 +149,39 @@ async def update_crawler_config(
     current_admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """(Admin) Cập nhật chu kỳ quét (số phút) và trạng thái bật/tắt của crawler."""
+    """(Admin) Cập nhật chu kỳ quét, trạng thái bật/tắt và cấu hình gửi tin nhắn lịch sử call."""
     await crawler_manager.save_settings(
         db,
         interval_minutes=payload.interval_minutes,
-        is_enabled=payload.is_enabled
+        is_enabled=payload.is_enabled,
+        notify_user_id=payload.notify_user_id,
+        notify_mode=payload.notify_mode
     )
     return CrawlerConfigResponse(**crawler_manager.get_status())
 
 
 @router.post("/admin/crawler-trigger")
 async def trigger_crawler_now(
-    current_admin: User = Depends(require_admin)
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
 ):
     """(Admin) Kích hoạt quét giá vàng ngay lập tức và trả về kết quả."""
-    result = await crawler_manager.trigger_crawl(source="MANUAL")
+    result = await crawler_manager.trigger_crawl(source="MANUAL", db=db)
     return result
+
+
+@router.post("/admin/crawler-cleanup")
+async def cleanup_crawler_bot_messages(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """(Admin) Xóa toàn bộ tin nhắn thông báo lịch sử call của bot giá vàng."""
+    deleted = await crawler_manager.cleanup_bot_messages(db=db)
+    return {
+        "success": True,
+        "deleted": deleted,
+        "message": f"Đã xóa {deleted} tin nhắn thông báo lịch sử bot."
+    }
+
 
 
