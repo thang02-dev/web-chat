@@ -25,7 +25,7 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
 async def list_users_for_admin(
     q: Optional[str] = Query(None, max_length=100, description="Tìm theo tên, username hoặc email"),
     role: Optional[str] = Query(None, pattern=r"^(ADMIN|USER)$", description="Lọc theo ADMIN hoặc USER"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(1000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     current_admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
@@ -100,6 +100,33 @@ async def toggle_user_lock(
     u_resp = UserResponse.model_validate(updated_user)
     u_resp.is_online = manager.is_user_online(updated_user.id)
     return u_resp
+
+@router.delete("/{user_id}")
+async def delete_user_account(
+    user_id: str,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """(Admin) Xóa vĩnh viễn tài khoản người dùng và dữ liệu hội thoại liên quan."""
+    deleted_info = await UserService.delete_user(
+        db,
+        target_user_id=user_id,
+        current_admin_id=current_admin.id
+    )
+    await manager.disconnect_user(user_id)
+    if crawler_manager.notify_user_id == user_id:
+        await crawler_manager.save_settings(
+            db,
+            interval_minutes=crawler_manager.interval_minutes,
+            is_enabled=crawler_manager.is_enabled,
+            notify_user_id=None,
+            notify_mode=crawler_manager.notify_mode
+        )
+    return {
+        "success": True,
+        "deleted_user": deleted_info,
+        "message": f"Đã xóa tài khoản {deleted_info['full_name']} (@{deleted_info['username']})."
+    }
 
 @router.get("/search", response_model=List[UserResponse])
 async def search_users(

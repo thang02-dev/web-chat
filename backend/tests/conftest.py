@@ -49,7 +49,12 @@ async def init_test_db():
                OR username LIKE 'chat_a_%'
                OR username LIKE 'chat_b_%'
                OR username LIKE 'ws_user_%'
-               OR username LIKE 'bot_recv_%';
+               OR username LIKE 'bot_recv_%'
+               OR username LIKE 'admin_%';
+        """))
+        await conn.execute(text("""
+            DELETE FROM conversations
+            WHERE id NOT IN (SELECT DISTINCT conversation_id FROM conversation_members);
         """))
         await conn.execute(text("""
             DELETE FROM gold_price_history

@@ -1,9 +1,9 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, update, func
+from sqlalchemy import select, or_, update, delete, func, case
 from fastapi import HTTPException, status
-from app.models.models import User
+from app.models.models import User, Conversation, ConversationMember, Message
 
 class UserService:
     @staticmethod
@@ -55,7 +55,7 @@ class UserService:
         db: AsyncSession,
         query: Optional[str] = None,
         role: Optional[str] = None,
-        limit: int = 100,
+        limit: int = 1000,
         offset: int = 0
     ) -> List[User]:
         stmt = select(User)
@@ -77,7 +77,9 @@ class UserService:
         if filters:
             stmt = stmt.where(*filters)
 
-        stmt = stmt.order_by(User.created_at.desc()).offset(offset).limit(limit)
+        # Ưu tiên hiển thị Quản lý (ADMIN) lên đầu rồi tới Người dùng (USER) theo thời gian tạo mới nhất
+        role_priority = case((User.role == "ADMIN", 0), else_=1)
+        stmt = stmt.order_by(role_priority, User.created_at.desc()).offset(offset).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
@@ -146,6 +148,64 @@ class UserService:
         await db.commit()
         await db.refresh(target_user)
         return target_user
+
+    @staticmethod
+    async def delete_user(
+        db: AsyncSession,
+        target_user_id: str,
+        current_admin_id: str
+    ) -> Dict[str, Any]:
+        if target_user_id == current_admin_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Bạn không thể tự xóa tài khoản của chính mình."
+            )
+
+        target_user = await UserService.get_by_id(db, target_user_id)
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Người dùng cần xóa không tồn tại."
+            )
+
+        if target_user.username.lower() == "admin":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không thể xóa tài khoản Quản trị viên hệ thống (@admin)."
+            )
+
+        # Tìm các cuộc hội thoại DIRECT mà user này tham gia để dọn sạch tránh hội thoại mồ côi
+        direct_conv_stmt = (
+            select(Conversation.id)
+            .join(ConversationMember, Conversation.id == ConversationMember.conversation_id)
+            .where(
+                ConversationMember.user_id == target_user_id,
+                Conversation.type == "DIRECT"
+            )
+        )
+        direct_conv_res = await db.execute(direct_conv_stmt)
+        direct_conv_ids = list(direct_conv_res.scalars().all())
+
+        if direct_conv_ids:
+            await db.execute(delete(Message).where(Message.conversation_id.in_(direct_conv_ids)))
+            await db.execute(delete(ConversationMember).where(ConversationMember.conversation_id.in_(direct_conv_ids)))
+            await db.execute(delete(Conversation).where(Conversation.id.in_(direct_conv_ids)))
+
+        # Xóa tin nhắn và tư cách thành viên còn lại (nếu có trong GROUP chat)
+        await db.execute(delete(Message).where(Message.sender_id == target_user_id))
+        await db.execute(delete(ConversationMember).where(ConversationMember.user_id == target_user_id))
+
+        deleted_info = {
+            "id": target_user.id,
+            "username": target_user.username,
+            "full_name": target_user.full_name,
+            "email": target_user.email,
+            "role": target_user.role
+        }
+
+        await db.delete(target_user)
+        await db.commit()
+        return deleted_info
 
     @staticmethod
     async def get_user_stats(db: AsyncSession) -> Dict[str, int]:

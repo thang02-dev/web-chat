@@ -249,7 +249,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!typingStatus.value[conversation_id]) {
       typingStatus.value[conversation_id] = {}
     }
-    
+
     const timerKey = `${conversation_id}_${user_id}`
     clearTimeout(typingTimers[timerKey])
 
@@ -284,7 +284,7 @@ export const useChatStore = defineStore('chat', () => {
         last_message_id: lastMessageId
       })
     } else {
-      api.post(`/conversations/${convId}/read?last_message_id=${lastMessageId}`).catch(() => {})
+      api.post(`/conversations/${convId}/read?last_message_id=${lastMessageId}`).catch(() => { })
     }
   }
 

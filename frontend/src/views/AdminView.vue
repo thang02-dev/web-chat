@@ -109,7 +109,7 @@
           <h1>{{ currentTab === 'users' ? 'Quản Lý Người Dùng' : 'Cấu Hình Quét Giá Vàng' }}</h1>
           <p class="desktop-sub">
             {{ currentTab === 'users'
-              ? 'Theo dõi, phân quyền vai trò và khóa/mở khóa tài khoản thành viên.'
+              ? 'Theo dõi, phân quyền vai trò, khóa/mở khóa và xóa tài khoản thành viên.'
               : 'Điều chỉnh tần suất tự động gọi sang tiệm vàng và điều khiển cào giá trực tiếp.'
             }}
           </p>
@@ -351,6 +351,21 @@
                         >
                           <span>🔓 Mở khóa</span>
                         </button>
+
+                        <button
+                          class="btn-action btn-delete"
+                          :disabled="actionLoadingId === u.id || u.id === authStore.user?.id || u.username === 'admin'"
+                          :title="
+                            u.id === authStore.user?.id
+                              ? 'Không thể tự xóa tài khoản của chính mình'
+                              : u.username === 'admin'
+                              ? 'Không thể xóa tài khoản Quản trị viên hệ thống (@admin)'
+                              : 'Xóa vĩnh viễn tài khoản này'
+                          "
+                          @click="confirmDeleteUser(u)"
+                        >
+                          <span>🗑️ Xóa</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -444,6 +459,14 @@
                     @click="confirmLockToggle(u, false)"
                   >
                     <span>🔓 Mở khóa</span>
+                  </button>
+
+                  <button
+                    class="btn-action btn-delete"
+                    :disabled="actionLoadingId === u.id || u.id === authStore.user?.id || u.username === 'admin'"
+                    @click="confirmDeleteUser(u)"
+                  >
+                    <span>🗑️ Xóa</span>
                   </button>
                 </div>
               </div>
@@ -836,6 +859,41 @@
       </div>
     </div>
 
+    <!-- Delete User Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-backdrop" @click.self="showDeleteModal = false">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="text-danger">🗑️ Xác nhận xóa tài khoản</h3>
+          <button class="close-btn" @click="showDeleteModal = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Bạn có chắc chắn muốn <strong>xóa vĩnh viễn</strong> tài khoản của
+            <strong>{{ targetUser?.full_name }} (@{{ targetUser?.username }})</strong> không?
+          </p>
+          <div class="target-role-preview">
+            <span :class="['role-pill', targetUser?.role === 'ADMIN' ? 'role-admin' : 'role-user']">
+              {{ targetUser?.role === 'ADMIN' ? '🛡️ Quản lý (ADMIN)' : '👤 Người dùng (USER)' }}
+            </span>
+          </div>
+          <p class="warning-text danger-box">
+            ⚠️ <strong>Cảnh báo:</strong> Hành động này không thể hoàn tác! Tài khoản cùng toàn bộ lịch sử trò chuyện và tin nhắn của người dùng này sẽ bị xóa vĩnh viễn khỏi hệ thống.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showDeleteModal = false">Hủy bỏ</button>
+          <button
+            class="btn btn-danger"
+            :disabled="!!actionLoadingId"
+            @click="executeDeleteUser"
+          >
+            <span v-if="actionLoadingId" class="spinner-small"></span>
+            <span>🗑️ Xóa vĩnh viễn</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div v-if="toast.show" :class="['toast-alert', toast.type]">
       <span>{{ toast.message }}</span>
@@ -880,6 +938,8 @@ const pendingRole = ref('')
 
 const showLockModal = ref(false)
 const pendingLockState = ref(false)
+
+const showDeleteModal = ref(false)
 
 // ==================== Crawler Config State ====================
 const crawlerConfig = ref({
@@ -977,7 +1037,7 @@ async function loadAdminRecipients() {
 async function loadUsers() {
   loading.value = true
   try {
-    const params = {}
+    const params = { limit: 1000 }
     if (searchQuery.value.trim()) params.q = searchQuery.value.trim()
     if (selectedRole.value) params.role = selectedRole.value
 
@@ -1081,6 +1141,33 @@ async function executeLockToggle() {
   } finally {
     actionLoadingId.value = null
     showLockModal.value = false
+  }
+}
+
+function confirmDeleteUser(user) {
+  targetUser.value = user
+  showDeleteModal.value = true
+}
+
+async function executeDeleteUser() {
+  if (!targetUser.value) return
+  const deletingUser = targetUser.value
+  actionLoadingId.value = deletingUser.id
+
+  try {
+    const res = await api.delete(`/users/${deletingUser.id}`)
+    users.value = users.value.filter(u => u.id !== deletingUser.id)
+    if (formNotifyUserId.value === deletingUser.id) {
+      formNotifyUserId.value = ''
+      await loadCrawlerConfig(true)
+    }
+    showToast(res.data?.message || `Đã xóa tài khoản ${deletingUser.full_name} (@${deletingUser.username}).`)
+    await Promise.all([loadStats(), loadAdminRecipients()])
+  } catch (err) {
+    showToast(err.response?.data?.detail || 'Không thể xóa tài khoản người dùng.', 'error')
+  } finally {
+    actionLoadingId.value = null
+    showDeleteModal.value = false
   }
 }
 
@@ -1843,11 +1930,14 @@ onBeforeUnmount(() => {
 .btn-demote { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
 .btn-demote:hover:not(:disabled) { background: #dc2626; color: #fff; border-color: #dc2626; }
 
-.btn-lock { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); }
-.btn-lock:hover:not(:disabled) { background: #dc2626; color: #fff; border-color: #dc2626; }
+.btn-lock { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+.btn-lock:hover:not(:disabled) { background: #d97706; color: #fff; border-color: #d97706; }
 
 .btn-unlock { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); }
 .btn-unlock:hover:not(:disabled) { background: #16a34a; color: #fff; border-color: #16a34a; }
+
+.btn-delete { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+.btn-delete:hover:not(:disabled) { background: #dc2626; color: #fff; border-color: #dc2626; }
 
 .btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -2528,6 +2618,7 @@ input:checked + .slider:before { transform: translateX(22px); }
 .modal-body { padding: 1.25rem; font-size: 0.9375rem; line-height: 1.5; }
 .target-role-preview { margin: 1rem 0; display: flex; justify-content: center; }
 .warning-text { color: #fbbf24; font-size: 0.8125rem; background: rgba(245, 158, 11, 0.1); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid rgba(245, 158, 11, 0.3); margin-top: 1rem; }
+.warning-text.danger-box { color: #fca5a5; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.35); }
 .modal-footer { padding: 1rem 1.25rem; background: rgba(15, 23, 42, 0.5); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem; }
 .btn-secondary { background: #334155; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer; }
 .text-danger { color: #ef4444; }
@@ -2812,6 +2903,10 @@ input:checked + .slider:before { transform: translateX(22px); }
     padding: 0.55rem 0.5rem;
     font-size: 0.8125rem;
     border-radius: 0.5rem;
+  }
+
+  .user-card-actions .btn-delete {
+    grid-column: span 2;
   }
 
   /* Stats grid mobile */

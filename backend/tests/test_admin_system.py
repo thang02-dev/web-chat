@@ -58,12 +58,16 @@ async def test_admin_system_and_permissions(client: AsyncClient):
     )
     assert res_forbidden_patch.status_code == 403
 
-    # 7. Admin user accessing user list -> 200 OK
+    # 7. Admin user accessing default user list -> 200 OK, views ALL roles (both ADMIN and USER, with ADMIN prioritized first)
     res_admin_list = await client.get("/api/v1/users/admin/list", headers=admin_headers)
     assert res_admin_list.status_code == 200
     users_data = res_admin_list.json()
     assert isinstance(users_data, list)
     assert len(users_data) >= 2
+    roles_in_default_list = {u["role"] for u in users_data}
+    assert "ADMIN" in roles_in_default_list
+    assert "USER" in roles_in_default_list
+    assert users_data[0]["role"] == "ADMIN"
     for u in users_data:
         assert "role" in u
         assert u["role"] in ["ADMIN", "USER"]
@@ -250,5 +254,28 @@ async def test_admin_system_and_permissions(client: AsyncClient):
     res_public_crawler = await client.get("/api/v1/prices/config")
     assert res_public_crawler.status_code == 200
     assert res_public_crawler.json()["interval_minutes"] == 5
+
+    # 30. Delete user tests:
+    # 30a. Regular user cannot delete user -> 403 Forbidden
+    res_forbidden_del = await client.delete(f"/api/v1/users/{user_id}", headers=user_headers)
+    assert res_forbidden_del.status_code == 403
+
+    # 30b. Admin cannot delete themselves -> 400 Bad Request
+    res_self_del = await client.delete(f"/api/v1/users/{admin_id}", headers=admin_headers)
+    assert res_self_del.status_code == 400
+
+    # 30c. Admin deleting non-existent user -> 404 Not Found
+    res_not_found_del = await client.delete("/api/v1/users/non-existent-user-uuid", headers=admin_headers)
+    assert res_not_found_del.status_code == 404
+
+    # 30d. Admin deletes regular user -> 200 OK and user is permanently removed
+    res_del_ok = await client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
+    assert res_del_ok.status_code == 200
+    assert res_del_ok.json()["success"] is True
+    assert res_del_ok.json()["deleted_user"]["id"] == user_id
+
+    res_check_deleted = await client.get(f"/api/v1/users/{user_id}", headers=admin_headers)
+    assert res_check_deleted.status_code == 404
+
 
 
