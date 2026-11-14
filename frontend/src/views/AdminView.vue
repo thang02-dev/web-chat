@@ -696,21 +696,42 @@
                 <span>🕛 Tự động dọn dẹp tin nhắn bot lúc 00:00 (0h đêm)</span>
                 <span class="bot-msg-counter">
                   Đang lưu: <strong>{{ crawlerConfig.bot_message_count || 0 }}</strong> tin nhắn bot
+                  ({{ crawlerConfig.bot_unchanged_message_count || 0 }} không đổi, {{ crawlerConfig.bot_changed_message_count || 0 }} có thay đổi)
                 </span>
               </div>
               <p class="cleanup-desc">
-                Những tin nhắn từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong> gửi đến tài khoản được chọn để báo cáo thông tin bot chạy sẽ được hệ thống <strong>tự động xóa toàn bộ vào đúng 00:00 hàng ngày</strong> (theo giờ Việt Nam) nhằm tránh lưu quá nhiều làm nặng Database.
+                Mặc định vào <strong>00:00 hàng ngày</strong> (theo giờ Việt Nam) hoặc khi nhấn xóa ngay, hệ thống sẽ
+                <strong>chỉ xóa tất cả tin nhắn giá vàng không thay đổi</strong> và giữ lại các tin nhắn khi giá vàng có thay đổi.
               </p>
+
+              <label class="cleanup-checkbox-row">
+                <input
+                  type="checkbox"
+                  v-model="formDeleteChangedMessages"
+                />
+                <span class="cleanup-checkbox-text">
+                  <strong>Xóa cả tin nhắn giá vàng có thay đổi</strong>
+                  <span class="cleanup-checkbox-sub">
+                    (Khi tích chọn, hệ thống sẽ xóa toàn bộ cả tin nhắn giá vàng có thay đổi lẫn không thay đổi)
+                  </span>
+                </span>
+              </label>
             </div>
             <button
               type="button"
               class="btn-cleanup-now"
-              :disabled="cleaningBotMessages || !crawlerConfig.bot_message_count"
+              :disabled="cleaningBotMessages || !canCleanupNow"
               @click="handleCleanupBotMessages"
-              title="Xóa ngay tất cả tin nhắn thông báo của bot trong DB"
+              :title="
+                formDeleteChangedMessages
+                  ? 'Xóa ngay toàn bộ tin nhắn bot (bao gồm cả tin giá vàng có thay đổi)'
+                  : 'Chỉ xóa ngay các tin nhắn giá vàng không thay đổi'
+              "
             >
               <span v-if="cleaningBotMessages" class="spinner-small"></span>
-              <span v-else>🧹 Xóa tin nhắn bot ngay</span>
+              <span v-else>
+                {{ formDeleteChangedMessages ? '🧹 Xóa tất cả tin nhắn bot ngay' : '🧹 Xóa tin nhắn bot ngay' }}
+              </span>
             </button>
           </div>
 
@@ -953,9 +974,12 @@ const crawlerConfig = ref({
   next_crawl_at: null,
   notify_user_id: null,
   notify_mode: 'ALWAYS',
+  delete_changed_messages: false,
   sender_username: 'admin',
   last_cleanup_date: null,
   bot_message_count: 0,
+  bot_unchanged_message_count: 0,
+  bot_changed_message_count: 0,
   recent_logs: []
 })
 const crawlerLoading = ref(false)
@@ -963,6 +987,7 @@ const formInterval = ref(10)
 const formEnabled = ref(true)
 const formNotifyUserId = ref('')
 const formNotifyMode = ref('ALWAYS')
+const formDeleteChangedMessages = ref(false)
 const savingConfig = ref(false)
 const isTriggeringCrawl = ref(false)
 const cleaningBotMessages = ref(false)
@@ -973,14 +998,23 @@ const recipientUserOptions = computed(() => {
   return sourceList.filter(u => u.role === 'ADMIN' && !u.is_locked)
 })
 
+const canCleanupNow = computed(() => {
+  if (formDeleteChangedMessages.value) {
+    return (crawlerConfig.value.bot_message_count || 0) > 0
+  }
+  return (crawlerConfig.value.bot_unchanged_message_count || 0) > 0
+})
+
 const hasConfigChanges = computed(() => {
   const currentNotifyUid = crawlerConfig.value.notify_user_id || ''
   const currentNotifyMode = crawlerConfig.value.notify_mode || 'ALWAYS'
+  const currentDeleteChanged = Boolean(crawlerConfig.value.delete_changed_messages)
   return (
     formInterval.value !== crawlerConfig.value.interval_minutes ||
     formEnabled.value !== crawlerConfig.value.is_enabled ||
     formNotifyUserId.value !== currentNotifyUid ||
-    formNotifyMode.value !== currentNotifyMode
+    formNotifyMode.value !== currentNotifyMode ||
+    formDeleteChangedMessages.value !== currentDeleteChanged
   )
 })
 
@@ -1182,6 +1216,7 @@ async function loadCrawlerConfig(syncForm = true) {
       formEnabled.value = res.data.is_enabled
       formNotifyUserId.value = res.data.notify_user_id || ''
       formNotifyMode.value = res.data.notify_mode || 'ALWAYS'
+      formDeleteChangedMessages.value = Boolean(res.data.delete_changed_messages)
     }
   } catch (err) {
     console.error('Lỗi khi tải cấu hình crawler:', err)
@@ -1202,11 +1237,13 @@ async function handleSaveConfig() {
       interval_minutes: formInterval.value,
       is_enabled: formEnabled.value,
       notify_user_id: formNotifyUserId.value || null,
-      notify_mode: formNotifyMode.value
+      notify_mode: formNotifyMode.value,
+      delete_changed_messages: formDeleteChangedMessages.value
     })
     crawlerConfig.value = res.data
     formNotifyUserId.value = res.data.notify_user_id || ''
     formNotifyMode.value = res.data.notify_mode || 'ALWAYS'
+    formDeleteChangedMessages.value = Boolean(res.data.delete_changed_messages)
     showToast(`Đã lưu cấu hình: Quét ${res.data.interval_minutes} phút/lần (${res.data.is_enabled ? 'Bật' : 'Tạm dừng'})!`)
   } catch (err) {
     showToast(err.response?.data?.detail || 'Không thể lưu cấu hình crawler.', 'error')
@@ -1235,8 +1272,10 @@ async function handleTriggerManualCrawl() {
 async function handleCleanupBotMessages() {
   cleaningBotMessages.value = true
   try {
-    const res = await api.post('/users/admin/crawler-cleanup')
-    showToast(res.data.message || 'Đã xóa sạch tin nhắn lịch sử bot!')
+    const res = await api.post('/users/admin/crawler-cleanup', {
+      delete_changed_messages: formDeleteChangedMessages.value
+    })
+    showToast(res.data.message || 'Đã xóa tin nhắn lịch sử bot!')
     await loadCrawlerConfig(false)
   } catch (err) {
     showToast('Lỗi khi xóa tin nhắn bot: ' + (err.response?.data?.detail || err.message), 'error')
@@ -2412,6 +2451,49 @@ input:checked + .slider:before { transform: translateX(22px); }
   color: #cbd5e1;
   margin: 0;
   line-height: 1.5;
+}
+
+.cleanup-checkbox-row {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+  padding: 0.55rem 0.75rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.cleanup-checkbox-row:hover {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(15, 23, 42, 0.75);
+}
+
+.cleanup-checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 0.15rem;
+  accent-color: #ef4444;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.cleanup-checkbox-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8125rem;
+  color: #fde68a;
+  line-height: 1.35;
+}
+
+.cleanup-checkbox-sub {
+  font-size: 0.73rem;
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 .btn-cleanup-now {

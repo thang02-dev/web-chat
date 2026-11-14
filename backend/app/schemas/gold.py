@@ -60,6 +60,17 @@ class CrawlerConfigUpdate(BaseModel):
     is_enabled: bool = Field(True, description="Trạng thái kích hoạt tự động quét")
     notify_user_id: Optional[str] = Field(None, description="ID tài khoản nhận tin nhắn lịch sử call (None hoặc rỗng nếu tắt)")
     notify_mode: str = Field("ALWAYS", pattern=r"^(ALWAYS|CHANGE_ONLY)$", description="ALWAYS: Mỗi lần call | CHANGE_ONLY: Chỉ khi giá thay đổi")
+    delete_changed_messages: bool = Field(
+        False,
+        description="False (Mặc định): Chỉ xóa tin nhắn giá vàng không thay đổi | True: Xóa cả tin nhắn giá vàng có thay đổi"
+    )
+
+
+class CrawlerCleanupRequest(BaseModel):
+    delete_changed_messages: Optional[bool] = Field(
+        None,
+        description="Nếu truyền vào sẽ ghi đè chế độ xóa (False: chỉ xóa tin không đổi, True: xóa cả tin có thay đổi)"
+    )
 
 
 class CrawlerLogItem(BaseModel):
@@ -83,9 +94,12 @@ class CrawlerConfigResponse(BaseModel):
     next_crawl_at: Optional[str] = None
     notify_user_id: Optional[str] = None
     notify_mode: str = "ALWAYS"
+    delete_changed_messages: bool = False
     sender_username: str = "admin"
     last_cleanup_date: Optional[str] = None
     bot_message_count: int = 0
+    bot_unchanged_message_count: int = 0
+    bot_changed_message_count: int = 0
     recent_logs: List[CrawlerLogItem] = Field(default_factory=list)
 
 

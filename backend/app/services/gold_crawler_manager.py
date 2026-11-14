@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Union
 
 import httpx
-from sqlalchemy import text, select, delete, func
+from sqlalchemy import text, select, delete, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
@@ -23,6 +23,8 @@ logger = logging.getLogger("webchat.gold.crawler_manager")
 
 VN_TZ = timezone(timedelta(hours=7))
 BOT_TEMP_ID_PREFIX = "gold_bot_"
+BOT_CHANGED_TEMP_ID_PREFIX = "gold_bot_changed_"
+BOT_UNCHANGED_TEMP_ID_PREFIX = "gold_bot_unchanged_"
 
 
 def _format_vnd(val: Optional[Union[Decimal, float, int]]) -> str:
@@ -57,9 +59,12 @@ class GoldCrawlerManager:
         # Cấu hình gửi tin nhắn lịch sử call từ Admin -> Tài khoản nhận
         self.notify_user_id: Optional[str] = None
         self.notify_mode: str = "ALWAYS"  # "ALWAYS" (Mỗi lần call) | "CHANGE_ONLY" (Chỉ khi giá thay đổi)
+        self.delete_changed_messages: bool = False  # False (Mặc định): Chỉ xóa tin giá không đổi | True: Xóa cả tin giá có thay đổi
         self.sender_username: str = "admin"
         self.last_cleanup_date: Optional[str] = None
         self.bot_message_count: int = 0
+        self.bot_unchanged_message_count: int = 0
+        self.bot_changed_message_count: int = 0
 
         # Keep-Alive chống spin-down trên Cloud
         self.public_base_url: Optional[str] = (
@@ -126,6 +131,9 @@ class GoldCrawlerManager:
                     val_mode = settings_map["crawler_notify_mode"].strip().upper()
                     if val_mode in ("ALWAYS", "CHANGE_ONLY"):
                         self.notify_mode = val_mode
+
+                if "crawler_delete_changed_messages" in settings_map:
+                    self.delete_changed_messages = settings_map["crawler_delete_changed_messages"].strip().lower() in ("true", "1", "yes")
 
                 if "crawler_last_cleanup_date" in settings_map:
                     self.last_cleanup_date = settings_map["crawler_last_cleanup_date"].strip() or None
@@ -197,12 +205,35 @@ class GoldCrawlerManager:
         except Exception as e:
             logger.warning(f"Could not load crawler settings from DB (using defaults): {e}")
 
+    @staticmethod
+    def _changed_bot_msg_condition():
+        return and_(
+            Message.client_temp_id.like(f"{BOT_TEMP_ID_PREFIX}%"),
+            or_(
+                Message.client_temp_id.like(f"{BOT_CHANGED_TEMP_ID_PREFIX}%"),
+                Message.content.like("%loại vàng có biến động giá!%")
+            )
+        )
+
+    @staticmethod
+    def _unchanged_bot_msg_condition():
+        return and_(
+            Message.client_temp_id.like(f"{BOT_TEMP_ID_PREFIX}%"),
+            ~Message.client_temp_id.like(f"{BOT_CHANGED_TEMP_ID_PREFIX}%"),
+            ~Message.content.like("%loại vàng có biến động giá!%")
+        )
+
     async def _refresh_bot_message_count(self, db: AsyncSession):
         try:
-            cnt_res = await db.execute(
-                select(func.count(Message.id)).where(Message.client_temp_id.like(f"{BOT_TEMP_ID_PREFIX}%"))
+            changed_res = await db.execute(
+                select(func.count(Message.id)).where(self._changed_bot_msg_condition())
             )
-            self.bot_message_count = cnt_res.scalar_one_or_none() or 0
+            unchanged_res = await db.execute(
+                select(func.count(Message.id)).where(self._unchanged_bot_msg_condition())
+            )
+            self.bot_changed_message_count = changed_res.scalar_one_or_none() or 0
+            self.bot_unchanged_message_count = unchanged_res.scalar_one_or_none() or 0
+            self.bot_message_count = self.bot_changed_message_count + self.bot_unchanged_message_count
         except Exception:
             pass
 
@@ -231,7 +262,8 @@ class GoldCrawlerManager:
         interval_minutes: int,
         is_enabled: bool,
         notify_user_id: Optional[str] = None,
-        notify_mode: str = "ALWAYS"
+        notify_mode: str = "ALWAYS",
+        delete_changed_messages: Optional[bool] = None
     ):
         """Lưu cấu hình mới vào DB và cập nhật runtime ngay lập tức."""
         clamped_interval = max(1, min(1440, interval_minutes))
@@ -244,11 +276,18 @@ class GoldCrawlerManager:
         self.is_enabled = is_enabled
         self.notify_user_id = clean_uid
         self.notify_mode = clean_mode
+        if delete_changed_messages is not None:
+            self.delete_changed_messages = bool(delete_changed_messages)
 
         await self._upsert_setting(db, "crawler_interval_minutes", str(clamped_interval))
         await self._upsert_setting(db, "crawler_enabled", "true" if is_enabled else "false")
         await self._upsert_setting(db, "crawler_notify_user_id", clean_uid or "")
         await self._upsert_setting(db, "crawler_notify_mode", clean_mode)
+        await self._upsert_setting(
+            db,
+            "crawler_delete_changed_messages",
+            "true" if self.delete_changed_messages else "false"
+        )
 
         today_vn = datetime.now(VN_TZ).strftime("%Y-%m-%d")
         if not self.last_cleanup_date:
@@ -369,9 +408,10 @@ class GoldCrawlerManager:
             # 3. Lấy hoặc tạo cuộc trò chuyện giữa admin và tài khoản được chọn
             conv = await ChatService.get_or_create_bot_conversation(db, admin_user.id, target_user.id)
 
-            # 4. Tạo nội dung và lưu tin nhắn với tiền tố client_temp_id = 'gold_bot_...'
+            # 4. Tạo nội dung và lưu tin nhắn với tiền tố phân biệt tin giá có thay đổi / không thay đổi
             content = self._build_notification_content(now_utc, source, status_str, saved, msg)
-            bot_temp_id = f"{BOT_TEMP_ID_PREFIX}{uuid.uuid4().hex}"
+            prefix = BOT_CHANGED_TEMP_ID_PREFIX if saved > 0 else BOT_UNCHANGED_TEMP_ID_PREFIX
+            bot_temp_id = f"{prefix}{uuid.uuid4().hex}"
 
             msg_resp, member_ids = await ChatService.create_message(
                 db,
@@ -403,22 +443,38 @@ class GoldCrawlerManager:
     async def cleanup_bot_messages(
         self,
         db: Optional[AsyncSession] = None,
-        new_date_str: Optional[str] = None
+        new_date_str: Optional[str] = None,
+        delete_changed: Optional[bool] = None
     ) -> int:
         """
-        Xóa tất cả tin nhắn lịch sử call của bot (client_temp_id LIKE 'gold_bot_%')
-        từ admin -> tài khoản nhận để tránh nặng DB.
+        Xóa tin nhắn lịch sử call của bot từ admin -> tài khoản nhận:
+        - Mặc định (delete_changed=False): Chỉ xóa tất cả tin nhắn giá vàng KHÔNG thay đổi.
+        - Khi tích chọn (delete_changed=True): Xóa cả tin nhắn giá vàng CÓ thay đổi.
         """
         deleted_count = 0
         affected_conv_ids: List[str] = []
         member_ids_to_notify: List[str] = []
+        should_delete_changed = self.delete_changed_messages if delete_changed is None else bool(delete_changed)
 
         try:
             async with self._session_scope(db) as session:
-                # Tìm các conversation_id có chứa tin nhắn bot
+                if delete_changed is not None and bool(delete_changed) != self.delete_changed_messages:
+                    self.delete_changed_messages = bool(delete_changed)
+                    await self._upsert_setting(
+                        session,
+                        "crawler_delete_changed_messages",
+                        "true" if self.delete_changed_messages else "false"
+                    )
+
+                if should_delete_changed:
+                    target_condition = Message.client_temp_id.like(f"{BOT_TEMP_ID_PREFIX}%")
+                else:
+                    target_condition = self._unchanged_bot_msg_condition()
+
+                # Tìm các conversation_id có chứa tin nhắn bot cần xóa
                 conv_stmt = (
                     select(Message.conversation_id)
-                    .where(Message.client_temp_id.like(f"{BOT_TEMP_ID_PREFIX}%"))
+                    .where(target_condition)
                     .distinct()
                 )
                 conv_res = await session.execute(conv_stmt)
@@ -433,20 +489,20 @@ class GoldCrawlerManager:
                     mem_res = await session.execute(mem_stmt)
                     member_ids_to_notify = [u for u in mem_res.scalars().all() if u]
 
-                # Thực hiện xóa toàn bộ tin nhắn thông báo của bot
-                del_stmt = delete(Message).where(Message.client_temp_id.like(f"{BOT_TEMP_ID_PREFIX}%"))
+                # Thực hiện xóa tin nhắn thông báo của bot theo chế độ đã chọn
+                del_stmt = delete(Message).where(target_condition)
                 del_res = await session.execute(del_stmt)
                 deleted_count = del_res.rowcount or 0
 
                 today_vn = new_date_str or datetime.now(VN_TZ).strftime("%Y-%m-%d")
                 self.last_cleanup_date = today_vn
-                self.bot_message_count = 0
                 await self._upsert_setting(session, "crawler_last_cleanup_date", today_vn)
                 await session.commit()
+                await self._refresh_bot_message_count(session)
 
             logger.info(
                 f"Cleaned up {deleted_count} gold bot notification message(s) "
-                f"(cleanup_date={self.last_cleanup_date})."
+                f"(delete_changed={should_delete_changed}, cleanup_date={self.last_cleanup_date})."
             )
 
             # Thông báo qua WebSocket để giao diện Chat xóa các tin nhắn bot ngay lập tức
@@ -456,7 +512,8 @@ class GoldCrawlerManager:
                         "type": "BOT_MESSAGES_CLEARED",
                         "payload": {
                             "conversation_ids": affected_conv_ids,
-                            "deleted_count": deleted_count
+                            "deleted_count": deleted_count,
+                            "delete_changed_messages": should_delete_changed
                         }
                     },
                     member_ids_to_notify
@@ -691,9 +748,12 @@ class GoldCrawlerManager:
             "next_crawl_at": self.next_crawl_at.isoformat() if self.next_crawl_at else None,
             "notify_user_id": self.notify_user_id,
             "notify_mode": self.notify_mode,
+            "delete_changed_messages": self.delete_changed_messages,
             "sender_username": self.sender_username,
             "last_cleanup_date": self.last_cleanup_date,
             "bot_message_count": self.bot_message_count,
+            "bot_unchanged_message_count": self.bot_unchanged_message_count,
+            "bot_changed_message_count": self.bot_changed_message_count,
             "recent_logs": self.recent_logs
         }
 

@@ -1,9 +1,9 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, Body, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.schemas import UserResponse, UserRoleUpdate, UserLockUpdate, UserStatsResponse
-from app.schemas.gold import CrawlerConfigUpdate, CrawlerConfigResponse
+from app.schemas.gold import CrawlerConfigUpdate, CrawlerConfigResponse, CrawlerCleanupRequest
 from app.services.auth_service import get_current_user
 from app.services.user_service import UserService
 from app.services.gold_crawler_manager import crawler_manager
@@ -195,7 +195,8 @@ async def update_crawler_config(
         interval_minutes=payload.interval_minutes,
         is_enabled=payload.is_enabled,
         notify_user_id=payload.notify_user_id,
-        notify_mode=payload.notify_mode
+        notify_mode=payload.notify_mode,
+        delete_changed_messages=payload.delete_changed_messages
     )
     return CrawlerConfigResponse(**crawler_manager.get_status())
 
@@ -212,15 +213,23 @@ async def trigger_crawler_now(
 
 @router.post("/admin/crawler-cleanup")
 async def cleanup_crawler_bot_messages(
+    payload: Optional[CrawlerCleanupRequest] = Body(default=None),
     current_admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """(Admin) Xóa toàn bộ tin nhắn thông báo lịch sử call của bot giá vàng."""
-    deleted = await crawler_manager.cleanup_bot_messages(db=db)
+    """(Admin) Xóa tin nhắn thông báo lịch sử call của bot giá vàng theo chế độ đã chọn."""
+    delete_changed = payload.delete_changed_messages if payload is not None else None
+    deleted = await crawler_manager.cleanup_bot_messages(db=db, delete_changed=delete_changed)
+    used_mode = crawler_manager.delete_changed_messages if delete_changed is None else bool(delete_changed)
+    if used_mode:
+        msg = f"Đã xóa {deleted} tin nhắn bot (bao gồm cả tin giá vàng có thay đổi)."
+    else:
+        msg = f"Đã xóa {deleted} tin nhắn giá vàng không thay đổi (giữ lại các tin giá có thay đổi)."
     return {
         "success": True,
         "deleted": deleted,
-        "message": f"Đã xóa {deleted} tin nhắn thông báo lịch sử bot."
+        "delete_changed_messages": used_mode,
+        "message": msg
     }
 
 

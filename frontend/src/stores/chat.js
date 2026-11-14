@@ -297,11 +297,18 @@ export const useChatStore = defineStore('chat', () => {
 
   async function handleBotMessagesCleared(payload) {
     const convIds = payload?.conversation_ids || Object.keys(messagesByConv.value)
+    const deleteChanged = Boolean(payload?.delete_changed_messages)
     for (const cid of convIds) {
       if (messagesByConv.value[cid]) {
-        messagesByConv.value[cid] = messagesByConv.value[cid].filter(
-          m => !m.client_temp_id || !String(m.client_temp_id).startsWith('gold_bot_')
-        )
+        messagesByConv.value[cid] = messagesByConv.value[cid].filter(m => {
+          const tempId = String(m.client_temp_id || '')
+          if (!tempId.startsWith('gold_bot_')) return true
+          if (deleteChanged) return false
+          const isChangedMsg =
+            tempId.startsWith('gold_bot_changed_') ||
+            String(m.content || '').includes('loại vàng có biến động giá!')
+          return isChangedMsg
+        })
       }
     }
     await loadConversations()

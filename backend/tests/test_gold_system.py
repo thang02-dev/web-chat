@@ -159,16 +159,17 @@ async def test_gold_bot_notification_modes_and_midnight_cleanup(client: AsyncCli
         await db.execute(update(User).where(User.id == recipient_id).values(role="ADMIN"))
         await db.commit()
 
-        # Đảm bảo dọn sạch tin nhắn bot cũ trước khi test
-        await crawler_manager.cleanup_bot_messages(db=db)
+        # Đảm bảo dọn sạch toàn bộ tin nhắn bot cũ trước khi test
+        await crawler_manager.cleanup_bot_messages(db=db, delete_changed=True)
 
-        # Cấu hình: Chọn người nhận + chế độ ALWAYS (Mỗi lần call)
+        # Cấu hình: Chọn người nhận + chế độ ALWAYS + mặc định delete_changed_messages=False
         await crawler_manager.save_settings(
             db,
             interval_minutes=10,
             is_enabled=True,
             notify_user_id=recipient_id,
-            notify_mode="ALWAYS"
+            notify_mode="ALWAYS",
+            delete_changed_messages=False
         )
 
         # Lượt call 1: Giá mới (saved = 1) -> Phải gửi tin nhắn từ admin
@@ -246,11 +247,31 @@ async def test_gold_bot_notification_modes_and_midnight_cleanup(client: AsyncCli
         assert restarted_mgr.last_crawl_at is not None
         assert len(restarted_mgr.recent_logs) >= 4
         assert restarted_mgr.bot_message_count == 3
+        assert restarted_mgr.bot_unchanged_message_count == 1
+        assert restarted_mgr.bot_changed_message_count == 2
+        assert restarted_mgr.delete_changed_messages is False
 
-        # Mô phỏng đồng hồ bước qua 00:00 (0h đêm ngày hôm sau theo giờ Việt Nam)
+        # Mô phỏng đồng hồ bước qua 00:00 với mặc định delete_changed_messages=False:
+        # Chỉ xóa tin nhắn giá vàng KHÔNG thay đổi (1 tin từ res2), giữ lại 2 tin giá vàng CÓ thay đổi (res1, res4)
         tomorrow_vn = datetime.now(VN_TZ) + timedelta(days=1)
-        deleted_count = await crawler_manager.check_and_run_midnight_cleanup(db=db, now_vn=tomorrow_vn)
-        assert deleted_count == 3
+        deleted_unchanged = await crawler_manager.check_and_run_midnight_cleanup(db=db, now_vn=tomorrow_vn)
+        assert deleted_unchanged == 1
+        assert crawler_manager.bot_unchanged_message_count == 0
+        assert crawler_manager.bot_changed_message_count == 2
+        assert crawler_manager.bot_message_count == 2
+
+        # Khi tích chọn checkbox delete_changed_messages=True và sang ngày tiếp theo -> Xóa nốt 2 tin giá vàng có thay đổi
+        await crawler_manager.save_settings(
+            db,
+            interval_minutes=10,
+            is_enabled=True,
+            notify_user_id=recipient_id,
+            notify_mode="CHANGE_ONLY",
+            delete_changed_messages=True
+        )
+        day_after_vn = datetime.now(VN_TZ) + timedelta(days=2)
+        deleted_changed = await crawler_manager.check_and_run_midnight_cleanup(db=db, now_vn=day_after_vn)
+        assert deleted_changed == 2
         assert crawler_manager.bot_message_count == 0
 
         # Kiểm tra lại DB: toàn bộ tin nhắn bot đã bị xóa, nhưng tin nhắn chat thường vẫn còn nguyên
@@ -316,22 +337,49 @@ async def test_gold_bot_self_admin_recipient_and_cleanup_api(client: AsyncClient
     assert cfg_res.status_code == 200
     assert cfg_res.json()["notify_user_id"] == admin_id
 
-    # Kích hoạt quét qua API admin
+    # Kích hoạt quét lần 1 qua API admin (giá mới -> saved=1, tạo 1 tin có thay đổi)
     trig_res = await client.post("/api/v1/users/admin/crawler-trigger", headers=admin_headers)
     assert trig_res.status_code == 200
     assert trig_res.json()["success"] is True
     assert trig_res.json()["notified"] is True
 
-    # Kiểm tra bot_message_count >= 1
+    # Kích hoạt quét lần 2 qua API admin (giá không đổi -> saved=0, tạo 1 tin không thay đổi)
+    trig_res2 = await client.post("/api/v1/users/admin/crawler-trigger", headers=admin_headers)
+    assert trig_res2.status_code == 200
+    assert trig_res2.json()["saved"] == 0
+    assert trig_res2.json()["notified"] is True
+
+    # Kiểm tra bot_message_count == 2 (1 không đổi, 1 có thay đổi)
     status_res = await client.get("/api/v1/users/admin/crawler-config", headers=admin_headers)
     assert status_res.status_code == 200
-    assert status_res.json()["bot_message_count"] >= 1
+    assert status_res.json()["bot_unchanged_message_count"] >= 1
+    assert status_res.json()["bot_changed_message_count"] >= 1
 
-    # 2. Gọi API xóa tin nhắn bot ngay lập tức
-    cleanup_res = await client.post("/api/v1/users/admin/crawler-cleanup", headers=admin_headers)
-    assert cleanup_res.status_code == 200
-    assert cleanup_res.json()["success"] is True
-    assert cleanup_res.json()["deleted"] >= 1
+    # 2a. Gọi API xóa tin nhắn bot mặc định (delete_changed_messages=False) -> Chỉ xóa tin giá không đổi
+    cleanup_unchanged = await client.post(
+        "/api/v1/users/admin/crawler-cleanup",
+        json={"delete_changed_messages": False},
+        headers=admin_headers
+    )
+    assert cleanup_unchanged.status_code == 200
+    assert cleanup_unchanged.json()["success"] is True
+    assert cleanup_unchanged.json()["deleted"] >= 1
+    assert cleanup_unchanged.json()["delete_changed_messages"] is False
+
+    status_mid = await client.get("/api/v1/users/admin/crawler-config", headers=admin_headers)
+    assert status_mid.json()["bot_unchanged_message_count"] == 0
+    assert status_mid.json()["bot_changed_message_count"] >= 1
+
+    # 2b. Gọi API xóa tin nhắn bot khi tích chọn checkbox (delete_changed_messages=True) -> Xóa cả tin giá có thay đổi
+    cleanup_all = await client.post(
+        "/api/v1/users/admin/crawler-cleanup",
+        json={"delete_changed_messages": True},
+        headers=admin_headers
+    )
+    assert cleanup_all.status_code == 200
+    assert cleanup_all.json()["success"] is True
+    assert cleanup_all.json()["deleted"] >= 1
+    assert cleanup_all.json()["delete_changed_messages"] is True
 
     status_after = await client.get("/api/v1/users/admin/crawler-config", headers=admin_headers)
     assert status_after.json()["bot_message_count"] == 0
