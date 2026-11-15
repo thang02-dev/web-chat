@@ -33,6 +33,15 @@ async def init_test_db():
     async with test_engine.begin() as conn:
         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'USER' NOT NULL;"))
         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE NOT NULL;"))
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255);"))
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS theme VARCHAR(30) DEFAULT 'ocean' NOT NULL;"))
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS quick_emoji VARCHAR(16) DEFAULT '👍' NOT NULL;"))
+        await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) DEFAULT 'TEXT' NOT NULL;"))
+        await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;"))
+        await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id VARCHAR(36);"))
+        await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions TEXT DEFAULT '{}' NOT NULL;"))
+        await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE NOT NULL;"))
+        await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_recalled BOOLEAN DEFAULT FALSE NOT NULL;"))
         await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS system_settings (
                 key VARCHAR(50) PRIMARY KEY,

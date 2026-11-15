@@ -131,6 +131,22 @@ async def delete_user_account(
         "message": f"Đã xóa tài khoản {deleted_info['full_name']} (@{deleted_info['username']})."
     }
 
+@router.get("/contacts", response_model=List[UserResponse])
+async def get_contacts_list(
+    limit: int = Query(30, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Lấy danh sách người dùng gợi ý / đang hoạt động cho thanh Active Now và tạo nhóm."""
+    users = await UserService.get_contacts(db, current_user_id=current_user.id, limit=limit)
+    resp = []
+    for u in users:
+        u_resp = UserResponse.model_validate(u)
+        u_resp.is_online = manager.is_user_online(u.id) or bool(u.is_online)
+        resp.append(u_resp)
+    resp.sort(key=lambda x: (not x.is_online, x.full_name.lower()))
+    return resp
+
 @router.get("/search", response_model=List[UserResponse])
 async def search_users(
     q: str = Query(..., min_length=1, description="Từ khóa tìm kiếm username hoặc tên đầy đủ"),

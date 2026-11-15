@@ -114,12 +114,56 @@ MIGRATION_STATEMENTS: List[tuple[str, str]] = [
             conversation_id VARCHAR(36) NOT NULL,
             sender_id VARCHAR(36) NOT NULL,
             content TEXT NOT NULL,
+            message_type VARCHAR(20) DEFAULT 'TEXT' NOT NULL,
+            attachment_url TEXT,
+            reply_to_id VARCHAR(36),
+            reactions TEXT DEFAULT '{}' NOT NULL,
+            is_pinned BOOLEAN DEFAULT FALSE NOT NULL,
+            is_recalled BOOLEAN DEFAULT FALSE NOT NULL,
             client_temp_id VARCHAR(100),
             status VARCHAR(20) DEFAULT 'SENT' NOT NULL,
             created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
         );
         """,
         "create_messages"
+    ),
+
+    # 8. Messenger UI/UX columns on conversations & messages
+    (
+        "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255);",
+        "add_conversations_avatar_url"
+    ),
+    (
+        "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS theme VARCHAR(30) DEFAULT 'ocean' NOT NULL;",
+        "add_conversations_theme"
+    ),
+    (
+        "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS quick_emoji VARCHAR(16) DEFAULT '👍' NOT NULL;",
+        "add_conversations_quick_emoji"
+    ),
+    (
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) DEFAULT 'TEXT' NOT NULL;",
+        "add_messages_message_type"
+    ),
+    (
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;",
+        "add_messages_attachment_url"
+    ),
+    (
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id VARCHAR(36);",
+        "add_messages_reply_to_id"
+    ),
+    (
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions TEXT DEFAULT '{}' NOT NULL;",
+        "add_messages_reactions"
+    ),
+    (
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE NOT NULL;",
+        "add_messages_is_pinned"
+    ),
+    (
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_recalled BOOLEAN DEFAULT FALSE NOT NULL;",
+        "add_messages_is_recalled"
     ),
 ]
 

@@ -38,6 +38,17 @@ class UserService:
         return list(result.scalars().all())
 
     @staticmethod
+    async def get_contacts(db: AsyncSession, current_user_id: str, limit: int = 30) -> List[User]:
+        stmt = (
+            select(User)
+            .where(User.id != current_user_id, User.is_locked == False)
+            .order_by(User.is_online.desc(), User.last_seen.desc())
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+    @staticmethod
     async def set_online_status(db: AsyncSession, user_id: str, is_online: bool) -> Optional[User]:
         now = datetime.now(timezone.utc)
         stmt = (

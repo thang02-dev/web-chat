@@ -4,6 +4,17 @@ import api from '@/services/api'
 import { useAuthStore } from './auth'
 import { useSocketStore } from './socket'
 
+export const CHAT_THEMES = [
+  { id: 'ocean', name: 'Đại Dương Xanh', color: '#3b82f6', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)' },
+  { id: 'love', name: 'Tình Yêu Ngọt Ngào', color: '#ec4899', gradient: 'linear-gradient(135deg, #ff4b72 0%, #a855f7 100%)' },
+  { id: 'cyberpunk', name: 'Cyberpunk Neon', color: '#8b5cf6', gradient: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)' },
+  { id: 'emerald', name: 'Rừng Ngọc Lục Bảo', color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #0d9488 100%)' },
+  { id: 'sunset', name: 'Hoàng Hôn Rực Rỡ', color: '#f59e0b', gradient: 'linear-gradient(135deg, #f97316 0%, #e11d48 100%)' },
+  { id: 'royal', name: 'Hoàng Gia Huyền Bí', color: '#a855f7', gradient: 'linear-gradient(135deg, #7e22ce 0%, #4338ca 100%)' },
+]
+
+export const QUICK_EMOJIS = ['👍', '❤️', '🔥', '🎉', '😂', '😮', '💎', '🚀']
+
 export const useChatStore = defineStore('chat', () => {
   const conversations = ref([])
   const activeConversationId = ref(null)
@@ -11,6 +22,13 @@ export const useChatStore = defineStore('chat', () => {
   const hasMore = ref({}) // { [convId]: boolean }
   const typingStatus = ref({}) // { [convId]: { [userId]: boolean } }
   const loading = ref(false)
+
+  // Messenger UI states
+  const replyingToMessage = ref(null) // Message currently being replied to
+  const contactsList = ref([]) // Online & suggested users for Active Now bar
+  const activeFilter = ref('ALL') // 'ALL' | 'UNREAD' | 'GROUP'
+  const sidebarSearchQuery = ref('')
+  const isInfoDrawerOpen = ref(false)
 
   const activeConversation = computed(() => {
     return conversations.value.find(c => c.id === activeConversationId.value) || null
@@ -21,11 +39,41 @@ export const useChatStore = defineStore('chat', () => {
     return messagesByConv.value[activeConversationId.value] || []
   })
 
+  const currentPinnedMessages = computed(() => {
+    if (!activeConversation.value) return []
+    const fromMsgs = currentMessages.value.filter(m => m.is_pinned && !m.is_recalled)
+    if (fromMsgs.length > 0) return fromMsgs
+    return activeConversation.value.pinned_messages || []
+  })
+
   const currentTypingUsers = computed(() => {
     if (!activeConversationId.value) return []
     const usersMap = typingStatus.value[activeConversationId.value] || {}
     const authStore = useAuthStore()
     return Object.keys(usersMap).filter(uid => usersMap[uid] && uid !== authStore.user?.id)
+  })
+
+  const filteredConversations = computed(() => {
+    let list = conversations.value
+    if (activeFilter.value === 'UNREAD') {
+      list = list.filter(c => (c.unread_count || 0) > 0)
+    } else if (activeFilter.value === 'GROUP') {
+      list = list.filter(c => c.type === 'GROUP')
+    }
+    const q = sidebarSearchQuery.value.trim().toLowerCase()
+    if (q) {
+      list = list.filter(c => {
+        const name = (c.name || c.other_user?.full_name || '').toLowerCase()
+        const handle = (c.other_user?.username || '').toLowerCase()
+        const lastContent = (c.last_message?.content || '').toLowerCase()
+        return name.includes(q) || handle.includes(q) || lastContent.includes(q)
+      })
+    }
+    return list
+  })
+
+  const totalUnreadCount = computed(() => {
+    return conversations.value.reduce((acc, c) => acc + (c.unread_count || 0), 0)
   })
 
   // Load all user's conversations
@@ -41,15 +89,25 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // Load contacts for Active Now carousel & Group creation
+  async function loadContacts() {
+    try {
+      const res = await api.get('/users/contacts', { params: { limit: 30 } })
+      contactsList.value = res.data
+    } catch (err) {
+      console.error('Failed to load contacts:', err)
+    }
+  }
+
   // Open or select a conversation
   async function selectConversation(convId) {
     activeConversationId.value = convId
+    replyingToMessage.value = null
     if (!messagesByConv.value[convId]) {
       messagesByConv.value[convId] = []
       hasMore.value[convId] = true
       await loadMessages(convId)
     }
-    // Mark as read if there are unread messages
     const conv = conversations.value.find(c => c.id === convId)
     if (conv && conv.unread_count > 0) {
       conv.unread_count = 0
@@ -58,6 +116,15 @@ export const useChatStore = defineStore('chat', () => {
         markAsRead(convId, lastMsg.id)
       }
     }
+  }
+
+  function setReplyTo(msg) {
+    if (!msg || msg.is_recalled) return
+    replyingToMessage.value = msg
+  }
+
+  function clearReplyTo() {
+    replyingToMessage.value = null
   }
 
   // Load messages with cursor pagination
@@ -79,7 +146,6 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       if (beforeMessageId) {
-        // Prepend older messages
         messagesByConv.value[convId] = [...msgs, ...messagesByConv.value[convId]]
       } else {
         messagesByConv.value[convId] = msgs
@@ -90,20 +156,46 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // Send message with optimistic UI & Idempotency
-  async function sendMessage(content) {
-    if (!activeConversationId.value || !content.trim()) return
+  async function sendMessage(content, options = {}) {
+    const convId = activeConversationId.value
+    if (!convId) return
+
+    const messageType = options.messageType || 'TEXT'
+    const attachmentUrl = options.attachmentUrl || null
+    const replyMsg = options.replyTo || replyingToMessage.value
+    const replyToId = replyMsg?.id || null
+
+    const cleanContent = (content || '').trim()
+    if (!cleanContent && !attachmentUrl) return
+
+    const displayContent = cleanContent || (messageType === 'IMAGE' ? '📷 [Hình ảnh]' : '✨ [Nhãn dán]')
 
     const authStore = useAuthStore()
     const socketStore = useSocketStore()
-    const convId = activeConversationId.value
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
-    // Optimistic message
     const optimisticMsg = {
       id: tempId,
       conversation_id: convId,
       sender_id: authStore.user?.id,
-      content: content.trim(),
+      content: displayContent,
+      message_type: messageType,
+      attachment_url: attachmentUrl,
+      reply_to_id: replyToId,
+      reply_to: replyMsg
+        ? {
+            id: replyMsg.id,
+            sender_id: replyMsg.sender_id,
+            sender_name: replyMsg.sender?.full_name || replyMsg.sender?.username || 'Thành viên',
+            content: replyMsg.content,
+            message_type: replyMsg.message_type || 'TEXT',
+            attachment_url: replyMsg.attachment_url || null,
+            is_recalled: false
+          }
+        : null,
+      reactions: {},
+      is_pinned: false,
+      is_recalled: false,
       client_temp_id: tempId,
       status: 'PENDING',
       created_at: new Date().toISOString(),
@@ -114,42 +206,157 @@ export const useChatStore = defineStore('chat', () => {
       messagesByConv.value[convId] = []
     }
     messagesByConv.value[convId].push(optimisticMsg)
+    replyingToMessage.value = null
 
-    // Update snippet in conversation list
     const conv = conversations.value.find(c => c.id === convId)
     if (conv) {
       conv.last_message = optimisticMsg
       conv.updated_at = optimisticMsg.created_at
-      // Re-sort conversations
       conversations.value.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
     }
 
-    // Try WebSocket first
     if (socketStore.isConnected) {
       socketStore.send('SEND_MESSAGE', {
         conversation_id: convId,
-        content: content.trim(),
+        content: displayContent,
+        message_type: messageType,
+        attachment_url: attachmentUrl,
+        reply_to_id: replyToId,
         client_temp_id: tempId
       })
     } else {
-      // Fallback to REST API
       try {
         const res = await api.post(`/conversations/${convId}/messages`, {
           conversation_id: convId,
-          content: content.trim(),
+          content: displayContent,
+          message_type: messageType,
+          attachment_url: attachmentUrl,
+          reply_to_id: replyToId,
           client_temp_id: tempId
         })
-        handleMessageAck({
-          client_temp_id: tempId,
-          message_id: res.data.id,
-          status: res.data.status,
-          conversation_id: convId
-        })
+        const idx = messagesByConv.value[convId].findIndex(m => m.client_temp_id === tempId)
+        if (idx !== -1) {
+          messagesByConv.value[convId][idx] = res.data
+        }
       } catch (err) {
         optimisticMsg.status = 'FAILED'
         console.error('REST message send failed:', err)
       }
     }
+  }
+
+  // Toggle Emoji Reaction on a Message
+  async function reactToMessage(messageId, emoji) {
+    const convId = activeConversationId.value
+    if (!convId || !messageId || !emoji) return
+
+    const authStore = useAuthStore()
+    const userId = authStore.user?.id
+    const msgs = messagesByConv.value[convId] || []
+    const target = msgs.find(m => m.id === messageId)
+
+    // Optimistic reaction update
+    if (target && userId && !target.is_recalled) {
+      const currentReactions = { ...(target.reactions || {}) }
+      const list = [...(currentReactions[emoji] || [])]
+      if (list.includes(userId)) {
+        const filtered = list.filter(u => u !== userId)
+        if (filtered.length > 0) currentReactions[emoji] = filtered
+        else delete currentReactions[emoji]
+      } else {
+        list.push(userId)
+        currentReactions[emoji] = list
+      }
+      target.reactions = currentReactions
+    }
+
+    try {
+      const res = await api.post(`/conversations/${convId}/messages/${messageId}/react`, { emoji })
+      if (target) {
+        target.reactions = res.data.reactions
+      }
+    } catch (err) {
+      console.error('Failed to react to message:', err)
+    }
+  }
+
+  // Toggle Pin Message
+  async function togglePinMessage(messageId) {
+    const convId = activeConversationId.value
+    if (!convId || !messageId) return
+    try {
+      const res = await api.patch(`/conversations/${convId}/messages/${messageId}/pin`)
+      handleMessagePinned({
+        conversation_id: convId,
+        message_id: messageId,
+        is_pinned: res.data.is_pinned,
+        message: res.data
+      })
+      return res.data
+    } catch (err) {
+      console.error('Failed to toggle pin message:', err)
+    }
+  }
+
+  // Recall (Unsend) Message
+  async function recallMessage(messageId) {
+    const convId = activeConversationId.value
+    if (!convId || !messageId) return
+    try {
+      const res = await api.post(`/conversations/${convId}/messages/${messageId}/recall`)
+      handleMessageRecalled({
+        conversation_id: convId,
+        message_id: messageId,
+        message: res.data
+      })
+      return res.data
+    } catch (err) {
+      console.error('Failed to recall message:', err)
+    }
+  }
+
+  // Update Conversation Theme / Quick Emoji / Name
+  async function updateConversationSettings(convId, settings) {
+    try {
+      const res = await api.patch(`/conversations/${convId}/settings`, settings)
+      handleConversationUpdated({
+        conversation_id: convId,
+        name: res.data.name,
+        theme: res.data.theme,
+        quick_emoji: res.data.quick_emoji,
+        avatar_url: res.data.avatar_url
+      })
+      return res.data
+    } catch (err) {
+      console.error('Failed to update conversation settings:', err)
+      throw err
+    }
+  }
+
+  // Search messages inside a conversation
+  async function searchConversationMessages(convId, query) {
+    if (!convId || !query.trim()) return []
+    try {
+      const res = await api.get(`/conversations/${convId}/messages/search`, {
+        params: { q: query.trim() }
+      })
+      return res.data
+    } catch (err) {
+      console.error('Failed to search messages:', err)
+      return []
+    }
+  }
+
+  // Create a new Group Chat
+  async function createGroupChat(name, memberIds, avatarUrl = null) {
+    const res = await api.post('/conversations/group', {
+      name,
+      member_ids: memberIds,
+      avatar_url: avatarUrl
+    })
+    await loadConversations()
+    await selectConversation(res.data.id)
+    return res.data
   }
 
   // Receive message event from WebSocket
@@ -162,12 +369,10 @@ export const useChatStore = defineStore('chat', () => {
       messagesByConv.value[convId] = []
     }
 
-    // Clear typing status of sender when they send a message
     if (typingStatus.value[convId] && msg.sender_id) {
       typingStatus.value[convId][msg.sender_id] = false
     }
 
-    // Check if this is an ACK for our optimistic message
     const existingIndex = messagesByConv.value[convId].findIndex(
       m => m.id === msg.id || (msg.client_temp_id && m.client_temp_id === msg.client_temp_id)
     )
@@ -178,23 +383,19 @@ export const useChatStore = defineStore('chat', () => {
       messagesByConv.value[convId].push(msg)
     }
 
-    // Update conversation list item
     let conv = conversations.value.find(c => c.id === convId)
     if (conv) {
       conv.last_message = msg
       conv.updated_at = msg.created_at
-      if (activeConversationId.value !== convId) {
+      if (activeConversationId.value !== convId && msg.sender_id !== authStore.user?.id) {
         conv.unread_count = (conv.unread_count || 0) + 1
       }
     } else {
-      // Refresh conversations list if new chat
       await loadConversations()
     }
 
-    // Re-sort conversations
     conversations.value.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
 
-    // Handle notifications if sender is not me
     if (msg.sender_id !== authStore.user?.id) {
       socketStore.playNotificationSound()
       socketStore.showDesktopNotification(
@@ -202,7 +403,6 @@ export const useChatStore = defineStore('chat', () => {
         msg.content
       )
 
-      // If viewing this conversation, mark as read
       if (activeConversationId.value === convId) {
         markAsRead(convId, msg.id)
       }
@@ -219,6 +419,79 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function handleMessageReaction(payload) {
+    const { conversation_id, message_id, reactions } = payload
+    const msgs = messagesByConv.value[conversation_id]
+    if (!msgs) return
+    const msg = msgs.find(m => m.id === message_id)
+    if (msg) {
+      msg.reactions = reactions || {}
+    }
+  }
+
+  function handleMessagePinned(payload) {
+    const { conversation_id, message_id, is_pinned, message } = payload
+    const msgs = messagesByConv.value[conversation_id]
+    if (msgs) {
+      const msg = msgs.find(m => m.id === message_id)
+      if (msg) {
+        msg.is_pinned = is_pinned
+      }
+    }
+    const conv = conversations.value.find(c => c.id === conversation_id)
+    if (conv) {
+      if (!conv.pinned_messages) conv.pinned_messages = []
+      if (is_pinned && message) {
+        const exists = conv.pinned_messages.some(p => p.id === message_id)
+        if (!exists) conv.pinned_messages.unshift(message)
+      } else {
+        conv.pinned_messages = conv.pinned_messages.filter(p => p.id !== message_id)
+      }
+    }
+  }
+
+  function handleMessageRecalled(payload) {
+    const { conversation_id, message_id } = payload
+    const msgs = messagesByConv.value[conversation_id]
+    if (msgs) {
+      for (const m of msgs) {
+        if (m.id === message_id) {
+          m.is_recalled = true
+          m.is_pinned = false
+          m.reactions = {}
+          m.content = 'Tin nhắn đã được thu hồi'
+          m.attachment_url = null
+        }
+        if (m.reply_to && m.reply_to.id === message_id) {
+          m.reply_to.is_recalled = true
+          m.reply_to.content = 'Tin nhắn đã được thu hồi'
+          m.reply_to.attachment_url = null
+        }
+      }
+    }
+    const conv = conversations.value.find(c => c.id === conversation_id)
+    if (conv) {
+      if (conv.last_message && conv.last_message.id === message_id) {
+        conv.last_message.is_recalled = true
+        conv.last_message.content = 'Tin nhắn đã được thu hồi'
+      }
+      if (conv.pinned_messages) {
+        conv.pinned_messages = conv.pinned_messages.filter(p => p.id !== message_id)
+      }
+    }
+  }
+
+  function handleConversationUpdated(payload) {
+    const { conversation_id, name, theme, quick_emoji, avatar_url } = payload
+    const conv = conversations.value.find(c => c.id === conversation_id)
+    if (conv) {
+      if (name) conv.name = name
+      if (theme) conv.theme = theme
+      if (quick_emoji) conv.quick_emoji = quick_emoji
+      if (avatar_url !== undefined) conv.avatar_url = avatar_url
+    }
+  }
+
   function handleMessageRead(payload) {
     const convId = payload.conversation_id
     if (!messagesByConv.value[convId]) return
@@ -230,7 +503,6 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function handleUserStatus(payload) {
-    // Update presence across all conversations
     for (const conv of conversations.value) {
       if (conv.other_user && conv.other_user.id === payload.user_id) {
         conv.other_user.is_online = payload.is_online
@@ -239,6 +511,11 @@ export const useChatStore = defineStore('chat', () => {
         if (m.user && m.user.id === payload.user_id) {
           m.user.is_online = payload.is_online
         }
+      }
+    }
+    for (const contact of contactsList.value) {
+      if (contact.id === payload.user_id) {
+        contact.is_online = payload.is_online
       }
     }
   }
@@ -255,14 +532,12 @@ export const useChatStore = defineStore('chat', () => {
 
     if (is_typing) {
       typingStatus.value[conversation_id][user_id] = true
-      // Safety fallback: if sender abruptly disconnects without clearing, clear after 10s
       typingTimers[timerKey] = setTimeout(() => {
         if (typingStatus.value[conversation_id]) {
           typingStatus.value[conversation_id][user_id] = false
         }
       }, 10000)
     } else {
-      // Immediately turn off when sender clears input box or sends
       typingStatus.value[conversation_id][user_id] = false
     }
   }
@@ -284,7 +559,7 @@ export const useChatStore = defineStore('chat', () => {
         last_message_id: lastMessageId
       })
     } else {
-      api.post(`/conversations/${convId}/read?last_message_id=${lastMessageId}`).catch(() => { })
+      api.post(`/conversations/${convId}/read?last_message_id=${lastMessageId}`).catch(() => {})
     }
   }
 
@@ -316,19 +591,40 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     conversations,
+    filteredConversations,
+    totalUnreadCount,
     activeConversationId,
     activeConversation,
     currentMessages,
+    currentPinnedMessages,
     currentTypingUsers,
     typingStatus,
     hasMore,
     loading,
+    replyingToMessage,
+    contactsList,
+    activeFilter,
+    sidebarSearchQuery,
+    isInfoDrawerOpen,
     loadConversations,
+    loadContacts,
     selectConversation,
+    setReplyTo,
+    clearReplyTo,
     loadMessages,
     sendMessage,
+    reactToMessage,
+    togglePinMessage,
+    recallMessage,
+    updateConversationSettings,
+    searchConversationMessages,
+    createGroupChat,
     receiveMessage,
     handleMessageAck,
+    handleMessageReaction,
+    handleMessagePinned,
+    handleMessageRecalled,
+    handleConversationUpdated,
     handleMessageRead,
     handleUserStatus,
     handleTypingStatus,

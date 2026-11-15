@@ -34,6 +34,9 @@ class Conversation(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     type = Column(String(20), default="DIRECT", nullable=False)  # DIRECT, GROUP
     name = Column(String(100), nullable=True)
+    avatar_url = Column(String(255), nullable=True)
+    theme = Column(String(30), default="ocean", nullable=False)
+    quick_emoji = Column(String(16), default="👍", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -66,6 +69,12 @@ class Message(Base):
     conversation_id = Column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
     sender_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     content = Column(Text, nullable=False)
+    message_type = Column(String(20), default="TEXT", nullable=False)  # TEXT, IMAGE, STICKER, SYSTEM
+    attachment_url = Column(Text, nullable=True)
+    reply_to_id = Column(String(36), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True, index=True)
+    reactions = Column(Text, default="{}", nullable=False)
+    is_pinned = Column(Boolean, default=False, nullable=False)
+    is_recalled = Column(Boolean, default=False, nullable=False)
     client_temp_id = Column(String(100), nullable=True, index=True)
     status = Column(String(20), default="SENT", nullable=False)  # SENT, DELIVERED, READ
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

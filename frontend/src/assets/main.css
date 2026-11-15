@@ -1,12 +1,16 @@
 :root {
   --primary: #3b82f6;
   --primary-hover: #2563eb;
+  --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  --accent-color: #60a5fa;
   --bg-dark: #0f172a;
   --bg-sidebar: #1e293b;
   --bg-chat: #0f172a;
+  --bg-chat-pattern: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.07) 0%, transparent 50%),
+                     radial-gradient(circle at 80% 80%, rgba(37, 99, 235, 0.07) 0%, transparent 50%);
   --bg-input: #1e293b;
   --bg-message-in: #334155;
-  --bg-message-out: #2563eb;
+  --bg-message-out: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --border-color: #334155;
@@ -14,6 +18,61 @@
   --status-offline: #64748b;
   --danger: #ef4444;
   --app-height: 100dvh;
+}
+
+/* Messenger-Style Chat Themes */
+.theme-ocean {
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --accent-color: #60a5fa;
+  --bg-message-out: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(14, 165, 233, 0.10) 0%, transparent 45%),
+                     radial-gradient(circle at 85% 80%, rgba(37, 99, 235, 0.10) 0%, transparent 45%);
+}
+
+.theme-love {
+  --primary: #ec4899;
+  --primary-hover: #db2777;
+  --accent-color: #f472b6;
+  --bg-message-out: linear-gradient(135deg, #ff4b72 0%, #a855f7 100%);
+  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(236, 72, 153, 0.12) 0%, transparent 45%),
+                     radial-gradient(circle at 85% 80%, rgba(168, 85, 247, 0.12) 0%, transparent 45%);
+}
+
+.theme-cyberpunk {
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --accent-color: #38bdf8;
+  --bg-message-out: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.14) 0%, transparent 45%),
+                     radial-gradient(circle at 85% 80%, rgba(236, 72, 153, 0.12) 0%, transparent 45%);
+}
+
+.theme-emerald {
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --accent-color: #34d399;
+  --bg-message-out: linear-gradient(135deg, #10b981 0%, #0d9488 100%);
+  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(16, 185, 129, 0.11) 0%, transparent 45%),
+                     radial-gradient(circle at 85% 80%, rgba(13, 148, 136, 0.11) 0%, transparent 45%);
+}
+
+.theme-sunset {
+  --primary: #f59e0b;
+  --primary-hover: #d97706;
+  --accent-color: #fbbf24;
+  --bg-message-out: linear-gradient(135deg, #f97316 0%, #e11d48 100%);
+  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(249, 115, 22, 0.12) 0%, transparent 45%),
+                     radial-gradient(circle at 85% 80%, rgba(225, 29, 72, 0.11) 0%, transparent 45%);
+}
+
+.theme-royal {
+  --primary: #a855f7;
+  --primary-hover: #9333ea;
+  --accent-color: #c084fc;
+  --bg-message-out: linear-gradient(135deg, #7e22ce 0%, #4338ca 100%);
+  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(168, 85, 247, 0.12) 0%, transparent 45%),
+                     radial-gradient(circle at 85% 80%, rgba(67, 56, 202, 0.12) 0%, transparent 45%);
 }
 
 * {
@@ -122,8 +181,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.125rem 0.375rem;
-  font-size: 0.75rem;
+  padding: 0.125rem 0.425rem;
+  font-size: 0.72rem;
   font-weight: 700;
   border-radius: 9999px;
   background-color: var(--primary);
@@ -156,8 +215,18 @@ body {
 }
 .status-dot.online {
   background-color: var(--status-online);
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
 }
 .status-dot.offline {
   background-color: var(--status-offline);
 }
 
+@keyframes msgHighlightFlash {
+  0% { background-color: rgba(56, 189, 248, 0.35); transform: scale(1.01); }
+  100% { background-color: transparent; transform: scale(1); }
+}
+
+.highlight-flash {
+  animation: msgHighlightFlash 1.8s ease-out;
+  border-radius: 0.75rem;
+}

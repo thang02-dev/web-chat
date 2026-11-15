@@ -133,6 +133,14 @@ export const useSocketStore = defineStore('socket', () => {
           chatStore.receiveMessage(payload)
         } else if (type === 'MESSAGE_ACK') {
           chatStore.handleMessageAck(payload)
+        } else if (type === 'MESSAGE_REACTION') {
+          chatStore.handleMessageReaction(payload)
+        } else if (type === 'MESSAGE_PINNED') {
+          chatStore.handleMessagePinned(payload)
+        } else if (type === 'MESSAGE_RECALLED') {
+          chatStore.handleMessageRecalled(payload)
+        } else if (type === 'CONVERSATION_UPDATED') {
+          chatStore.handleConversationUpdated(payload)
         } else if (type === 'MESSAGE_READ') {
           chatStore.handleMessageRead(payload)
         } else if (type === 'USER_STATUS') {

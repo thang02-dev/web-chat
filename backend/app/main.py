@@ -226,10 +226,13 @@ async def websocket_endpoint(
             # 2. Gửi tin nhắn mới
             elif event_type == "SEND_MESSAGE":
                 conversation_id = event_payload.get("conversation_id")
-                content = event_payload.get("content", "").strip()
+                content = (event_payload.get("content") or "").strip()
                 client_temp_id = event_payload.get("client_temp_id")
+                message_type = event_payload.get("message_type") or "TEXT"
+                attachment_url = event_payload.get("attachment_url")
+                reply_to_id = event_payload.get("reply_to_id")
 
-                if conversation_id and content:
+                if conversation_id and (content or attachment_url):
                     async with AsyncSessionLocal() as db:
                         try:
                             msg_resp, member_ids = await ChatService.create_message(
@@ -237,7 +240,10 @@ async def websocket_endpoint(
                                 conversation_id=conversation_id,
                                 sender_id=user_id,
                                 content=content,
-                                client_temp_id=client_temp_id
+                                client_temp_id=client_temp_id,
+                                message_type=message_type,
+                                attachment_url=attachment_url,
+                                reply_to_id=reply_to_id
                             )
 
                             # Broadcast NEW_MESSAGE tới toàn bộ thành viên phòng
@@ -265,6 +271,82 @@ async def websocket_endpoint(
                                 )
                         except Exception as e:
                             logger.error(f"Error handling SEND_MESSAGE: {e}")
+
+            # 2b. Thả cảm xúc tin nhắn (Reaction)
+            elif event_type == "REACT_MESSAGE":
+                conversation_id = event_payload.get("conversation_id")
+                message_id = event_payload.get("message_id")
+                emoji = (event_payload.get("emoji") or "").strip()
+                if conversation_id and message_id and emoji:
+                    async with AsyncSessionLocal() as db:
+                        try:
+                            msg_resp, member_ids = await ChatService.toggle_reaction(
+                                db, conversation_id, message_id, user_id, emoji
+                            )
+                            await manager.broadcast_to_users(
+                                {
+                                    "type": "MESSAGE_REACTION",
+                                    "payload": {
+                                        "conversation_id": conversation_id,
+                                        "message_id": message_id,
+                                        "reactions": msg_resp.reactions,
+                                        "user_id": user_id,
+                                        "emoji": emoji
+                                    }
+                                },
+                                member_ids
+                            )
+                        except Exception as e:
+                            logger.error(f"Error handling REACT_MESSAGE: {e}")
+
+            # 2c. Ghim / Bỏ ghim tin nhắn
+            elif event_type == "PIN_MESSAGE":
+                conversation_id = event_payload.get("conversation_id")
+                message_id = event_payload.get("message_id")
+                if conversation_id and message_id:
+                    async with AsyncSessionLocal() as db:
+                        try:
+                            msg_resp, member_ids = await ChatService.toggle_pin_message(
+                                db, conversation_id, message_id, user_id
+                            )
+                            await manager.broadcast_to_users(
+                                {
+                                    "type": "MESSAGE_PINNED",
+                                    "payload": {
+                                        "conversation_id": conversation_id,
+                                        "message_id": message_id,
+                                        "is_pinned": msg_resp.is_pinned,
+                                        "message": msg_resp.model_dump(mode="json")
+                                    }
+                                },
+                                member_ids
+                            )
+                        except Exception as e:
+                            logger.error(f"Error handling PIN_MESSAGE: {e}")
+
+            # 2d. Thu hồi tin nhắn
+            elif event_type == "RECALL_MESSAGE":
+                conversation_id = event_payload.get("conversation_id")
+                message_id = event_payload.get("message_id")
+                if conversation_id and message_id:
+                    async with AsyncSessionLocal() as db:
+                        try:
+                            msg_resp, member_ids = await ChatService.recall_message(
+                                db, conversation_id, message_id, user_id
+                            )
+                            await manager.broadcast_to_users(
+                                {
+                                    "type": "MESSAGE_RECALLED",
+                                    "payload": {
+                                        "conversation_id": conversation_id,
+                                        "message_id": message_id,
+                                        "message": msg_resp.model_dump(mode="json")
+                                    }
+                                },
+                                member_ids
+                            )
+                        except Exception as e:
+                            logger.error(f"Error handling RECALL_MESSAGE: {e}")
 
             # 3. Trạng thái soạn tin (Typing Indicator)
             elif event_type == "TYPING_STATUS":

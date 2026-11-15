@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
@@ -50,16 +50,40 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 # --- Message Schemas ---
+class ReplySnippetResponse(BaseModel):
+    id: str
+    sender_id: str
+    sender_name: Optional[str] = None
+    content: str
+    message_type: str = "TEXT"
+    attachment_url: Optional[str] = None
+    is_recalled: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
 class MessageCreate(BaseModel):
-    conversation_id: str
-    content: str = Field(..., min_length=1)
+    conversation_id: Optional[str] = None
+    content: str = Field(default="")
+    message_type: str = Field(default="TEXT", pattern=r"^(TEXT|IMAGE|STICKER|SYSTEM)$")
+    attachment_url: Optional[str] = None
+    reply_to_id: Optional[str] = None
     client_temp_id: Optional[str] = None
+
+class MessageReactionRequest(BaseModel):
+    emoji: str = Field(..., min_length=1, max_length=16)
 
 class MessageResponse(BaseModel):
     id: str
     conversation_id: str
     sender_id: str
     content: str
+    message_type: str = "TEXT"
+    attachment_url: Optional[str] = None
+    reply_to_id: Optional[str] = None
+    reply_to: Optional[ReplySnippetResponse] = None
+    reactions: Dict[str, List[str]] = Field(default_factory=dict)
+    is_pinned: bool = False
+    is_recalled: bool = False
     client_temp_id: Optional[str] = None
     status: str
     created_at: datetime
@@ -77,6 +101,17 @@ class MessageAck(BaseModel):
 class DirectConversationCreate(BaseModel):
     target_user_id: str
 
+class GroupConversationCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    member_ids: List[str] = Field(..., min_length=1)
+    avatar_url: Optional[str] = None
+
+class ConversationSettingsUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    theme: Optional[str] = Field(None, max_length=30)
+    quick_emoji: Optional[str] = Field(None, min_length=1, max_length=16)
+    avatar_url: Optional[str] = None
+
 class ConversationMemberResponse(BaseModel):
     id: str
     user_id: str
@@ -91,10 +126,14 @@ class ConversationResponse(BaseModel):
     id: str
     type: str
     name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    theme: str = "ocean"
+    quick_emoji: str = "👍"
     created_at: datetime
     updated_at: datetime
-    members: List[ConversationMemberResponse] = []
+    members: List[ConversationMemberResponse] = Field(default_factory=list)
     last_message: Optional[MessageResponse] = None
+    pinned_messages: List[MessageResponse] = Field(default_factory=list)
     unread_count: int = 0
     other_user: Optional[UserResponse] = None  # Handy for DIRECT chats
 
@@ -102,6 +141,5 @@ class ConversationResponse(BaseModel):
 
 # --- WebSocket Schemas ---
 class WSAction(BaseModel):
-    type: str  # SEND_MESSAGE, TYPING_STATUS, MARK_AS_READ, HEARTBEAT
-    payload: dict = {}
-
+    type: str  # SEND_MESSAGE, TYPING_STATUS, MARK_AS_READ, HEARTBEAT, REACT_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE
+    payload: dict = Field(default_factory=dict)
