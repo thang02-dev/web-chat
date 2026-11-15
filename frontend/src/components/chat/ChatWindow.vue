@@ -1725,6 +1725,8 @@ function handleInputBlur() {
   font-size: 0.72rem;
   cursor: pointer;
   transition: all 0.15s;
+  min-width: 0;
+  overflow: hidden;
 }
 .theme-swatch-btn.selected {
   border-color: var(--primary);
@@ -1886,6 +1888,19 @@ function handleInputBlur() {
   cursor: pointer;
 }
 
+@media (max-width: 1150px) {
+  .chat-info-drawer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 310px;
+    max-width: 88vw;
+    box-shadow: -8px 0 28px rgba(0, 0, 0, 0.55);
+    z-index: 25;
+  }
+}
+
 @media (max-width: 768px) {
   .chat-header {
     padding: 0.625rem 0.875rem;
@@ -1901,15 +1916,6 @@ function handleInputBlur() {
   }
   .send-btn-text {
     display: none;
-  }
-  .chat-info-drawer {
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    max-width: 320px;
-    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.5);
   }
 }
 </style>

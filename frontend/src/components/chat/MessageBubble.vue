@@ -45,7 +45,7 @@
       </div>
 
       <div class="bubble-and-actions">
-        <!-- Messenger Floating Quick Reaction & Action Toolbar -->
+        <!-- Messenger Floating Quick Reaction & Action Toolbar (Absolute Positioned - Takes 0px horizontal space) -->
         <div v-if="!message.is_recalled" :class="['hover-action-bar', { visible: showActions }]">
           <div class="quick-reactions-tray">
             <button
@@ -58,8 +58,9 @@
             >
               {{ emoji }}
             </button>
-          </div>
-          <div class="quick-tools-tray">
+
+            <span class="tray-divider"></span>
+
             <button class="tool-mini-btn" title="Trả lời tin nhắn" @click.stop="$emit('reply', message)">
               ↩
             </button>
@@ -210,7 +211,6 @@ const hasReactions = computed(() => {
 const isStickerOrJumbo = computed(() => {
   if (props.message.message_type === 'STICKER') return true
   const text = (props.message.content || '').trim()
-  // Pure single or double emoji check
   const emojiRegex = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic}){1,2}$/u
   return emojiRegex.test(text)
 })
@@ -230,12 +230,10 @@ function escapeHtml(str) {
 
 const formattedHtmlContent = computed(() => {
   let safe = escapeHtml(props.message.content)
-  // Auto-link URLs
   safe = safe.replace(
     /(https?:\/\/[^\s<]+)/g,
     '<a href="$1" target="_blank" rel="noopener noreferrer" class="chat-link">$1</a>'
   )
-  // Highlight search keyword if active
   const kw = (props.highlightKeyword || '').trim()
   if (kw) {
     const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -283,9 +281,10 @@ async function copyMessageText() {
 
 .message-row {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.65rem;
-  max-width: 78%;
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
+  max-width: min(84%, 680px);
+  width: fit-content;
   position: relative;
 }
 
@@ -334,6 +333,7 @@ async function copyMessageText() {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  max-width: 100%;
 }
 
 .message-row.me .message-content-wrapper {
@@ -378,35 +378,35 @@ async function copyMessageText() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 260px;
+  max-width: 340px;
   opacity: 0.9;
 }
 
 .bubble-and-actions {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  max-width: 100%;
 }
 
-.message-row.me .bubble-and-actions {
-  flex-direction: row;
-}
-
-.message-row.other .bubble-and-actions {
-  flex-direction: row-reverse;
-}
-
-/* Hover Action Bar (Messenger Style) */
+/* Floating Hover Action Bar (Overlay above the bubble so it NEVER squeezes bubble width) */
 .hover-action-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  position: absolute;
+  bottom: 100%;
+  padding-bottom: 6px;
   opacity: 0;
   pointer-events: none;
   transform: translateY(4px);
-  transition: all 0.15s ease;
-  z-index: 20;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 30;
+  white-space: nowrap;
+}
+
+.message-row.me .hover-action-bar {
+  right: 0;
+}
+
+.message-row.other .hover-action-bar {
+  left: 0;
 }
 
 .hover-action-bar.visible {
@@ -416,49 +416,52 @@ async function copyMessageText() {
 }
 
 .quick-reactions-tray {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 2px;
-  background: #1e293b;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(8px);
   border: 1px solid #334155;
   border-radius: 9999px;
-  padding: 2px 6px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  padding: 3px 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.tray-divider {
+  width: 1px;
+  height: 16px;
+  background: #334155;
+  margin: 0 4px;
 }
 
 .reaction-pick-btn {
   background: none;
   border: none;
-  font-size: 1rem;
+  font-size: 0.98rem;
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 50%;
   transition: transform 0.15s ease, background 0.15s;
+  line-height: 1;
 }
 .reaction-pick-btn:hover {
-  transform: scale(1.3);
+  transform: scale(1.28);
   background: rgba(255, 255, 255, 0.08);
 }
 .reaction-pick-btn.active {
-  background: rgba(59, 130, 246, 0.25);
-}
-
-.quick-tools-tray {
-  display: flex;
-  gap: 3px;
-  justify-content: center;
+  background: rgba(59, 130, 246, 0.28);
 }
 
 .tool-mini-btn {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: transparent;
+  border: none;
   color: #cbd5e1;
-  font-size: 0.72rem;
-  width: 26px;
-  height: 26px;
+  font-size: 0.78rem;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
@@ -466,21 +469,24 @@ async function copyMessageText() {
 .tool-mini-btn:hover {
   background: #334155;
   color: #fff;
-  transform: translateY(-1px);
+  transform: scale(1.12);
 }
 .tool-mini-btn.danger:hover {
   background: rgba(239, 68, 68, 0.25);
-  border-color: #ef4444;
+  color: #fca5a5;
 }
 
 /* Message Bubble */
 .message-bubble {
   position: relative;
-  padding: 0.6rem 0.875rem;
+  padding: 0.65rem 0.95rem;
   border-radius: 1.125rem;
   font-size: 0.9375rem;
-  line-height: 1.45;
-  word-break: break-word;
+  line-height: 1.5;
+  width: fit-content;
+  max-width: 100%;
+  word-break: normal;
+  overflow-wrap: break-word;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
@@ -539,8 +545,8 @@ async function copyMessageText() {
 }
 
 .chat-attached-image {
-  max-width: 280px;
-  max-height: 260px;
+  max-width: 320px;
+  max-height: 280px;
   border-radius: 0.75rem;
   object-fit: cover;
   cursor: zoom-in;
@@ -553,6 +559,8 @@ async function copyMessageText() {
 
 .message-text {
   white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .message-text :deep(.chat-link) {
@@ -574,7 +582,7 @@ async function copyMessageText() {
   align-items: center;
   justify-content: flex-end;
   gap: 0.25rem;
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
   font-size: 0.66rem;
   opacity: 0.82;
 }
@@ -630,9 +638,15 @@ async function copyMessageText() {
   font-size: 0.68rem;
 }
 
+@media (max-width: 1100px) {
+  .message-row {
+    max-width: 90%;
+  }
+}
+
 @media (max-width: 768px) {
   .message-row {
-    max-width: 88%;
+    max-width: 92%;
     gap: 0.375rem;
   }
   .sender-avatar-slot,
@@ -642,10 +656,10 @@ async function copyMessageText() {
   }
   .message-bubble {
     font-size: 0.875rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.55rem 0.8rem;
   }
   .chat-attached-image {
-    max-width: 210px;
+    max-width: 220px;
   }
 }
 </style>
