@@ -64,22 +64,37 @@
       </div>
     </div>
 
-    <!-- Batch Cards Grid -->
+    <!-- Batch Cards Grid: mặc định 2 khối, bấm nút để xem tất cả -->
     <div class="row">
       <GoldCard
-        v-for="card in batch.cards"
+        v-for="card in visibleCards"
         :key="card.id || card.gold_type"
         :card="card"
         :is-latest="batch.is_latest"
       />
     </div>
+
+    <div v-if="hasMore" class="batch-expand-row">
+      <button
+        type="button"
+        class="btn-expand-batch"
+        :aria-expanded="expanded"
+        @click="expanded = !expanded"
+      >
+        <i :class="expanded ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+        <span>{{ expanded ? 'Thu gọn' : `Xem tất cả (${batch.cards.length})` }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup>
+import { ref, computed } from 'vue'
 import GoldCard from './GoldCard.vue'
 
-defineProps({
+const PREVIEW_COUNT = 2
+
+const props = defineProps({
   batch: {
     type: Object,
     required: true
@@ -91,6 +106,13 @@ defineProps({
 })
 
 defineEmits(['request-delete'])
+
+const expanded = ref(false)
+const cards = computed(() => props.batch?.cards || [])
+const hasMore = computed(() => cards.value.length > PREVIEW_COUNT)
+const visibleCards = computed(() =>
+  expanded.value ? cards.value : cards.value.slice(0, PREVIEW_COUNT)
+)
 
 function formatBatchTime(batch) {
   if (!batch) return '–'
@@ -104,4 +126,32 @@ function formatBatchTime(batch) {
   return batch.formatted_batch_time || '–'
 }
 </script>
+
+<style scoped>
+.batch-expand-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.btn-expand-batch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1.1rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-expand-batch:hover {
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+</style>
 
