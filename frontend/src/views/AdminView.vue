@@ -653,7 +653,18 @@
             </div>
             <p class="input-hint">
               Ví dụ: Đặt <strong>10 phút</strong> nghĩa là cứ mỗi 10 phút trôi qua, backend sẽ cào giá tiệm vàng 1 lần.
+              Mỗi cửa hàng có chu kỳ riêng (chỉnh tại mục Cửa hàng giá vàng); nút bên dưới áp dụng nhanh chu kỳ đang chọn cho tất cả.
             </p>
+            <button
+              type="button"
+              class="btn-apply-all"
+              :disabled="applyingAll || !formInterval || formInterval < 1 || formInterval > 1440"
+              @click="handleApplyIntervalToAll"
+            >
+              <span v-if="applyingAll" class="spinner-small"></span>
+              <i v-else class="bi bi-collection"></i>
+              <span>Áp dụng {{ formInterval }} phút cho tất cả cửa hàng</span>
+            </button>
           </div>
 
           <hr class="config-divider" />
@@ -1086,6 +1097,7 @@ const defaultAvatar = 'https://api.dicebear.com/7.x/bottts/svg?seed=user'
 // Navigation Tab ('users' | 'stores' | 'config')
 const currentTab = ref('users')
 const storesCount = ref(0)
+const applyingAll = ref(false)
 
 // ==================== User Management State ====================
 const users = ref([])
@@ -1448,6 +1460,26 @@ async function handleSaveConfig() {
     showToast(err.response?.data?.detail || 'Không thể lưu cấu hình crawler.', 'error')
   } finally {
     savingConfig.value = false
+  }
+}
+
+async function handleApplyIntervalToAll() {
+  const minutes = Number(formInterval.value)
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+    showToast('Chu kỳ quét phải từ 1 đến 1440 phút.', 'error')
+    return
+  }
+  if (!window.confirm(`Đặt chu kỳ ${minutes} phút cho TẤT CẢ cửa hàng? Chu kỳ riêng của từng cửa hàng sẽ bị ghi đè.`)) return
+
+  applyingAll.value = true
+  try {
+    const res = await api.put('/admin/gold-sources/interval', { interval_minutes: minutes })
+    storesCount.value = Array.isArray(res.data) ? res.data.length : storesCount.value
+    showToast(`Đã áp dụng chu kỳ ${minutes} phút cho ${res.data.length} cửa hàng.`)
+  } catch (err) {
+    showToast(err.response?.data?.detail || 'Không thể áp dụng chu kỳ cho các cửa hàng.', 'error')
+  } finally {
+    applyingAll.value = false
   }
 }
 
@@ -3168,6 +3200,25 @@ input:checked + .slider:before { transform: translateX(20px); }
   animation: spin 0.8s linear infinite;
   display: inline-block;
 }
+
+.btn-apply-all {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-apply-all:hover:not(:disabled) { background-color: var(--accent); color: var(--on-accent); }
+.btn-apply-all:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ==================== RESPONSIVE RULES ==================== */
 @media (max-width: 900px) {

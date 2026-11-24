@@ -222,6 +222,15 @@ class GoldSourceService:
         )
 
     @staticmethod
+    async def set_interval_for_all(db: AsyncSession, interval_minutes: int) -> List[GoldSource]:
+        """Áp dụng cùng một chu kỳ quét cho toàn bộ cửa hàng."""
+        sources = await GoldSourceService.list_sources(db, enabled_only=False)
+        for s in sources:
+            s.interval_minutes = interval_minutes
+        await db.commit()
+        return await GoldSourceService.list_sources(db, enabled_only=False)
+
+    @staticmethod
     async def reorder_sources(db: AsyncSession, ordered_ids: List[int]) -> List[GoldSource]:
         sources = await GoldSourceService.list_sources(db, enabled_only=False)
         existing_ids = {s.id for s in sources}

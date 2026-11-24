@@ -154,6 +154,10 @@ class GoldSourceReorderRequest(BaseModel):
     ids: List[int] = Field(..., min_length=1, description="Danh sách ID cửa hàng theo thứ tự mới")
 
 
+class GoldSourceBulkIntervalRequest(BaseModel):
+    interval_minutes: int = Field(..., ge=1, le=1440, description="Chu kỳ quét áp dụng cho tất cả cửa hàng")
+
+
 class GoldSourceTestDraftRequest(BaseModel):
     url: str = Field(..., min_length=4, max_length=2000)
     extract_rules: Optional[ExtractRules] = None

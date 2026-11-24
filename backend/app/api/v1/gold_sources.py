@@ -6,6 +6,7 @@ from app.api.v1.users import require_admin
 from app.core.database import get_db
 from app.models.models import User
 from app.schemas.gold import (
+    GoldSourceBulkIntervalRequest,
     GoldSourceCreate,
     GoldSourceDeletePreview,
     GoldSourceOut,
@@ -58,6 +59,18 @@ async def reorder_gold_sources(
         return [GoldSourceOut.model_validate(s) for s in sources]
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.put("/interval", response_model=List[GoldSourceOut])
+async def set_interval_for_all_sources(
+    payload: GoldSourceBulkIntervalRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """(Admin) Áp dụng nhanh một chu kỳ quét cho tất cả cửa hàng."""
+    sources = await GoldSourceService.set_interval_for_all(db, payload.interval_minutes)
+    crawler_manager._sleep_event.set()
+    return [GoldSourceOut.model_validate(s) for s in sources]
 
 
 @router.post("/test", response_model=GoldSourceTestResult)

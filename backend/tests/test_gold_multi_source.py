@@ -440,3 +440,23 @@ async def test_public_sources_default_is_first_and_config_per_source(client: Asy
     default_cfg = (await client.get("/api/v1/prices/config")).json()
     assert default_cfg["source_id"] == pub[0]["id"]
 
+
+
+@pytest.mark.asyncio
+async def test_apply_interval_to_all_sources(client: AsyncClient, offline):
+    h = await admin_headers(client)
+    a = await create_store(client, h, "Interval A", SHOP_HVT, interval_minutes=7)
+    before = {s["id"]: s["interval_minutes"] for s in (await client.get("/api/v1/admin/gold-sources", headers=h)).json()}
+    try:
+        for bad in (0, 1441):
+            assert (await client.put("/api/v1/admin/gold-sources/interval",
+                                     json={"interval_minutes": bad}, headers=h)).status_code == 422
+        assert (await client.put("/api/v1/admin/gold-sources/interval",
+                                 json={"interval_minutes": 5})).status_code == 401
+        r = await client.put("/api/v1/admin/gold-sources/interval", json={"interval_minutes": 5}, headers=h)
+        assert r.status_code == 200
+        assert len(r.json()) == len(before) and all(s["interval_minutes"] == 5 for s in r.json())
+    finally:
+        for sid, m in before.items():
+            await client.patch(f"/api/v1/admin/gold-sources/{sid}", json={"interval_minutes": m}, headers=h)
+        await delete_store(client, h, a["id"])
