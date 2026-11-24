@@ -41,29 +41,15 @@
         </button>
 
         <button
-          :class="['menu-btn', { active: currentTab === 'stores' }]"
-          @click="currentTab = 'stores'"
-        >
-          <div class="menu-icon-wrap">
-            <i class="bi bi-shop"></i>
-          </div>
-          <span class="menu-text">Cửa hàng giá vàng</span>
-          <span v-if="storesCount" class="menu-pill">{{ storesCount }}</span>
-        </button>
-
-        <button
           :class="['menu-btn', { active: currentTab === 'config' }]"
           @click="currentTab = 'config'"
         >
           <div class="menu-icon-wrap config-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
+            <i class="bi bi-shop"></i>
           </div>
-          <span class="menu-text">Cấu hình</span>
+          <span class="menu-text">Cấu hình giá vàng</span>
           <span :class="['menu-pill', crawlerConfig.is_enabled ? 'pill-active' : 'pill-paused']">
-            {{ crawlerConfig.is_enabled ? `${crawlerConfig.interval_minutes}m` : 'Tắt' }}
+            {{ crawlerConfig.is_enabled ? (storesCount ? `${storesCount} web` : 'Bật') : 'Tắt' }}
           </span>
         </button>
       </nav>
@@ -92,15 +78,7 @@
             </svg>
           </button>
           <div class="mobile-title-wrap">
-            <h1>
-              {{
-                currentTab === 'users'
-                  ? 'Quản Lý Người Dùng'
-                  : currentTab === 'stores'
-                  ? 'Cửa Hàng Giá Vàng'
-                  : 'Cấu Hình Quét Giá'
-              }}
-            </h1>
+            <h1>{{ currentTab === 'users' ? 'Quản Lý Người Dùng' : 'Cấu Hình Giá Vàng' }}</h1>
           </div>
           <img :src="authStore.user?.avatar_url || defaultAvatar" alt="Admin Avatar" class="mobile-avatar" />
         </div>
@@ -115,18 +93,11 @@
             <span>Người dùng</span>
           </button>
           <button
-            :class="['mobile-tab-btn', { active: currentTab === 'stores' }]"
-            @click="currentTab = 'stores'"
-          >
-            <i class="bi bi-shop"></i>
-            <span>Cửa hàng</span>
-          </button>
-          <button
             :class="['mobile-tab-btn', { active: currentTab === 'config' }]"
             @click="currentTab = 'config'"
           >
-            <i class="bi bi-sliders"></i>
-            <span>Cấu hình</span>
+            <i class="bi bi-shop"></i>
+            <span>Giá vàng</span>
           </button>
         </div>
       </header>
@@ -134,22 +105,12 @@
       <!-- Desktop Page Title Banner -->
       <header class="desktop-top-bar">
         <div class="desktop-title-group">
-          <h1>
-            {{
-              currentTab === 'users'
-                ? 'Quản Lý Người Dùng'
-                : currentTab === 'stores'
-                ? 'Quản Lý Cửa Hàng Giá Vàng'
-                : 'Cấu Hình Quét Giá Vàng'
-            }}
-          </h1>
+          <h1>{{ currentTab === 'users' ? 'Quản Lý Người Dùng' : 'Quản Lý & Cấu Hình Giá Vàng' }}</h1>
           <p class="desktop-sub">
             {{
               currentTab === 'users'
                 ? 'Theo dõi, phân quyền vai trò, khóa/mở khóa và xóa tài khoản thành viên.'
-                : currentTab === 'stores'
-                ? 'Thêm, sửa, xóa, kéo thả sắp xếp thứ tự cửa hàng hiển thị và quét thử lấy bảng giá vàng.'
-                : 'Điều chỉnh tần suất tự động gọi sang tiệm vàng và điều khiển cào giá trực tiếp.'
+                : 'Quản lý danh sách cửa hàng quét giá vàng, kéo thả thứ tự hiển thị, quét thử và cài đặt thông báo Bot.'
             }}
           </p>
         </div>
@@ -524,14 +485,9 @@
         </div>
       </section>
 
-      <!-- ==================== TAB 2: QUẢN LÝ CỬA HÀNG GIÁ VÀNG ==================== -->
-      <section v-else-if="currentTab === 'stores'" class="content-tab tab-stores">
-        <StoreManager @toast="showToast" @count-change="storesCount = $event" />
-      </section>
-
-      <!-- ==================== TAB 3: CẤU HÌNH (CRAWLER TIỆM VÀNG) ==================== -->
+      <!-- ==================== TAB 2: QUẢN LÝ & CẤU HÌNH GIÁ VÀNG ==================== -->
       <section v-else-if="currentTab === 'config'" class="content-tab tab-config">
-        <!-- Live Status & Manual Trigger Header Card -->
+        <!-- 1. Thanh Trạng Thái & Điều Khiển Quét Ngay -->
         <div class="config-hero-card">
           <div class="hero-left">
             <div class="crawler-status-pill-group">
@@ -551,21 +507,14 @@
                       ? 'Đang quét giá...'
                       : crawlerConfig.is_enabled
                       ? 'Tự động quét (Đang chạy)'
-                      : 'Đã tạm dừng'
+                      : 'Đã tạm dừng tự động quét'
                   }}
                 </span>
               </span>
 
-              <span class="crawler-badge badge-interval">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                <span>{{ crawlerConfig.interval_minutes }} phút / lần</span>
-              </span>
-
               <span class="crawler-badge badge-source">
-                <span>Nguồn: Đa cửa hàng (Quản lý tại mục Cửa hàng giá vàng)</span>
+                <i class="bi bi-shop"></i>
+                <span>{{ storesCount }} cửa hàng giá vàng</span>
               </span>
             </div>
 
@@ -587,8 +536,23 @@
             </div>
           </div>
 
-          <!-- Manual Crawl Button -->
+          <!-- Công tắc Tự động quét & Nút Quét giá ngay -->
           <div class="hero-right">
+            <label
+              class="hero-auto-toggle"
+              :title="formEnabled ? 'Đang bật tự động quét định kỳ' : 'Đang tạm dừng tự động quét định kỳ'"
+            >
+              <span class="hero-toggle-label">Tự động quét:</span>
+              <span class="switch">
+                <input
+                  type="checkbox"
+                  v-model="formEnabled"
+                  @change="handleSaveConfig"
+                />
+                <span class="slider round"></span>
+              </span>
+            </label>
+
             <button
               class="btn-trigger-crawl"
               :disabled="crawlerConfig.is_crawling || isTriggeringCrawl"
@@ -603,72 +567,16 @@
           </div>
         </div>
 
-        <!-- Interval Configuration Box -->
+        <!-- 2. Bảng Quản Lý Danh Sách Cửa Hàng Giá Vàng -->
+        <StoreManager
+          ref="storeManagerRef"
+          @toast="showToast"
+          @count-change="storesCount = $event"
+          @interval-all-changed="onBulkIntervalChanged"
+        />
+
+        <!-- 3. Cấu Hình Thông Báo Tin Nhắn Bot & Dọn Dẹp 00:00 -->
         <div class="config-settings-card">
-          <div class="card-section-title">
-            <h3>Cài đặt chu kỳ quét giá vàng</h3>
-            <p>Hệ thống tự động gọi sang website tiệm vàng định kỳ. Khi phát hiện giá Mua hoặc Bán thay đổi, bản ghi mới sẽ được lưu vào lịch sử và thông báo tức thì.</p>
-          </div>
-
-          <!-- Switch Auto-crawl -->
-          <div class="setting-toggle-row">
-            <div class="toggle-info">
-              <span class="toggle-name">Kích hoạt tự động quét giá định kỳ</span>
-              <span class="toggle-desc">Nếu tắt, hệ thống sẽ tạm dừng quét ngầm và chỉ cập nhật khi nhấn nút "Quét giá ngay".</span>
-            </div>
-            <label class="switch">
-              <input type="checkbox" v-model="formEnabled" />
-              <span class="slider round"></span>
-            </label>
-          </div>
-
-          <!-- Preset Interval Selector -->
-          <div class="setting-interval-row">
-            <label class="setting-label">Chọn nhanh chu kỳ quét:</label>
-            <div class="preset-pills-grid">
-              <button
-                v-for="preset in [1, 2, 5, 10, 15, 30, 60]"
-                :key="preset"
-                type="button"
-                :class="['preset-btn', { active: formInterval === preset }]"
-                @click="formInterval = preset"
-              >
-                <span>{{ preset }} phút{{ preset === 10 ? ' (Khuyên dùng)' : '' }}</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Custom Interval Input -->
-          <div class="custom-interval-input-group">
-            <label class="setting-label">Hoặc nhập số phút tùy chỉnh (1 - 1440 phút):</label>
-            <div class="input-with-addon">
-              <input
-                v-model.number="formInterval"
-                type="number"
-                min="1"
-                max="1440"
-                placeholder="Nhập số phút..."
-              />
-              <span class="addon-text">phút / lần</span>
-            </div>
-            <p class="input-hint">
-              Ví dụ: Đặt <strong>10 phút</strong> nghĩa là cứ mỗi 10 phút trôi qua, backend sẽ cào giá tiệm vàng 1 lần.
-              Mỗi cửa hàng có chu kỳ riêng (chỉnh tại mục Cửa hàng giá vàng); nút bên dưới áp dụng nhanh chu kỳ đang chọn cho tất cả.
-            </p>
-            <button
-              type="button"
-              class="btn-apply-all"
-              :disabled="applyingAll || !formInterval || formInterval < 1 || formInterval > 1440"
-              @click="handleApplyIntervalToAll"
-            >
-              <span v-if="applyingAll" class="spinner-small"></span>
-              <i v-else class="bi bi-collection"></i>
-              <span>Áp dụng {{ formInterval }} phút cho tất cả cửa hàng</span>
-            </button>
-          </div>
-
-          <hr class="config-divider" />
-
           <!-- Chat Notification Configuration Section -->
           <div class="card-section-title">
             <h3>Thông báo lịch sử call qua tin nhắn</h3>
@@ -1094,10 +1002,10 @@ const authStore = useAuthStore()
 
 const defaultAvatar = 'https://api.dicebear.com/7.x/bottts/svg?seed=user'
 
-// Navigation Tab ('users' | 'stores' | 'config')
+// Navigation Tab ('users' | 'config')
 const currentTab = ref('users')
 const storesCount = ref(0)
-const applyingAll = ref(false)
+const storeManagerRef = ref(null)
 
 // ==================== User Management State ====================
 const users = ref([])
@@ -1463,24 +1371,9 @@ async function handleSaveConfig() {
   }
 }
 
-async function handleApplyIntervalToAll() {
-  const minutes = Number(formInterval.value)
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
-    showToast('Chu kỳ quét phải từ 1 đến 1440 phút.', 'error')
-    return
-  }
-  if (!window.confirm(`Đặt chu kỳ ${minutes} phút cho TẤT CẢ cửa hàng? Chu kỳ riêng của từng cửa hàng sẽ bị ghi đè.`)) return
-
-  applyingAll.value = true
-  try {
-    const res = await api.put('/admin/gold-sources/interval', { interval_minutes: minutes })
-    storesCount.value = Array.isArray(res.data) ? res.data.length : storesCount.value
-    showToast(`Đã áp dụng chu kỳ ${minutes} phút cho ${res.data.length} cửa hàng.`)
-  } catch (err) {
-    showToast(err.response?.data?.detail || 'Không thể áp dụng chu kỳ cho các cửa hàng.', 'error')
-  } finally {
-    applyingAll.value = false
-  }
+function onBulkIntervalChanged(minutes) {
+  formInterval.value = minutes
+  crawlerConfig.value.interval_minutes = minutes
 }
 
 async function handleTriggerManualCrawl() {
@@ -1492,7 +1385,10 @@ async function handleTriggerManualCrawl() {
     } else {
       showToast(res.data.message || 'Quá trình quét giá không thành công.', 'error')
     }
-    await loadCrawlerConfig(false)
+    await Promise.all([
+      loadCrawlerConfig(false),
+      storeManagerRef.value?.loadStores ? storeManagerRef.value.loadStores() : Promise.resolve()
+    ])
   } catch (err) {
     showToast('Lỗi khi quét giá vàng: ' + (err.response?.data?.detail || err.message), 'error')
   } finally {
@@ -3201,24 +3097,29 @@ input:checked + .slider:before { transform: translateX(20px); }
   display: inline-block;
 }
 
-.btn-apply-all {
-  align-self: flex-start;
+.hero-right {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.hero-auto-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  margin-top: 0.6rem;
-  padding: 0.5rem 0.9rem;
-  background-color: var(--bg-surface);
-  border: 1px solid var(--accent);
+  gap: 0.55rem;
+  padding: 0.42rem 0.75rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--accent);
-  font-family: var(--font-ui);
-  font-size: 0.8125rem;
-  font-weight: 600;
   cursor: pointer;
 }
-.btn-apply-all:hover:not(:disabled) { background-color: var(--accent); color: var(--on-accent); }
-.btn-apply-all:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.hero-toggle-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
 
 /* ==================== RESPONSIVE RULES ==================== */
 @media (max-width: 900px) {
@@ -3300,7 +3201,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 
   .mobile-segmented-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
     padding: 0.35rem 0.875rem 0.55rem 0.875rem;
     gap: 0.45rem;
   }

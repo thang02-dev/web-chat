@@ -32,6 +32,51 @@
       </div>
     </div>
 
+    <!-- Thanh đặt nhanh chu kỳ quét cho tất cả cửa hàng -->
+    <div v-if="stores.length > 0" class="bulk-interval-bar">
+      <div class="bulk-interval-label">
+        <i class="bi bi-clock-history"></i>
+        <span>Chu kỳ quét cho tất cả:</span>
+      </div>
+
+      <div class="bulk-interval-controls">
+        <div class="bulk-preset-pills">
+          <button
+            v-for="p in [1, 5, 10, 15, 30, 60]"
+            :key="p"
+            type="button"
+            :class="['bulk-pill-btn', { active: bulkInterval === p }]"
+            @click="bulkInterval = p"
+          >
+            {{ p }}p
+          </button>
+        </div>
+
+        <div class="bulk-input-group">
+          <input
+            v-model.number="bulkInterval"
+            type="number"
+            min="1"
+            max="1440"
+            class="bulk-number-input"
+            aria-label="Số phút quét cho tất cả cửa hàng"
+          />
+          <span class="bulk-unit">phút</span>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-secondary btn-apply-bulk"
+          :disabled="applyingBulk || !bulkInterval || bulkInterval < 1 || bulkInterval > 1440"
+          @click="handleApplyBulkInterval"
+        >
+          <span v-if="applyingBulk" class="spinner-inline"></span>
+          <i v-else class="bi bi-check2-all"></i>
+          <span>Áp dụng tất cả</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Table Container -->
     <div class="store-table-card">
       <div v-if="loading && stores.length === 0" class="store-empty-state">
@@ -534,11 +579,13 @@ import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import Sortable from 'sortablejs'
 import goldSourcesApi from '@/services/goldSources'
 
-const emit = defineEmits(['toast', 'count-change'])
+const emit = defineEmits(['toast', 'count-change', 'interval-all-changed'])
 
 const stores = ref([])
 const loading = ref(false)
 const testingId = ref(null)
+const bulkInterval = ref(10)
+const applyingBulk = ref(false)
 const tbodyRef = ref(null)
 let sortableInstance = null
 let draggedIdx = null
@@ -612,12 +659,39 @@ async function loadStores() {
   try {
     const data = await goldSourcesApi.listAdmin()
     stores.value = Array.isArray(data) ? data : []
+    if (stores.value.length > 0 && stores.value[0].interval_minutes) {
+      bulkInterval.value = stores.value[0].interval_minutes
+    }
     await nextTick()
     initSortable()
   } catch (err) {
     emit('toast', err.response?.data?.detail || 'Không thể tải danh sách cửa hàng.', 'error')
   } finally {
     loading.value = false
+  }
+}
+
+async function handleApplyBulkInterval() {
+  const minutes = Number(bulkInterval.value)
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+    emit('toast', 'Chu kỳ quét phải từ 1 đến 1440 phút.', 'error')
+    return
+  }
+
+  applyingBulk.value = true
+  try {
+    const updatedList = await goldSourcesApi.setIntervalAll(minutes)
+    if (Array.isArray(updatedList)) {
+      stores.value = updatedList
+    } else {
+      stores.value = stores.value.map((s) => ({ ...s, interval_minutes: minutes }))
+    }
+    emit('interval-all-changed', minutes)
+    emit('toast', `Đã đặt chu kỳ ${minutes} phút cho tất cả ${stores.value.length} cửa hàng.`, 'success')
+  } catch (err) {
+    emit('toast', err.response?.data?.detail || 'Không thể áp dụng chu kỳ cho các cửa hàng.', 'error')
+  } finally {
+    applyingBulk.value = false
   }
 }
 
@@ -899,7 +973,8 @@ onBeforeUnmount(() => {
 defineExpose({
   stores,
   loadStores,
-  moveStore
+  moveStore,
+  handleApplyBulkInterval
 })
 </script>
 
@@ -1583,6 +1658,110 @@ input:checked + .slider::before {
   .css-rules-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.bulk-interval-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.bulk-interval-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.bulk-interval-label i {
+  color: var(--accent);
+}
+
+.bulk-interval-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.bulk-preset-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.bulk-pill-btn {
+  padding: 0.28rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--bg-sidebar);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulk-pill-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-main);
+}
+
+.bulk-pill-btn.active {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.bulk-input-group {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-sidebar);
+  overflow: hidden;
+}
+
+.bulk-number-input {
+  width: 58px;
+  padding: 0.28rem 0.45rem;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.bulk-number-input:focus {
+  outline: none;
+}
+
+.bulk-unit {
+  padding: 0 0.45rem 0 0.15rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.btn-apply-bulk {
+  padding: 0.32rem 0.75rem;
+  font-size: 0.78rem;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-apply-bulk:hover:not(:disabled) {
+  background-color: var(--accent);
+  color: var(--on-accent);
 }
 </style>
 

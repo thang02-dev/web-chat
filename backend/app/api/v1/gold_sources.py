@@ -67,8 +67,11 @@ async def set_interval_for_all_sources(
     current_admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """(Admin) Áp dụng nhanh một chu kỳ quét cho tất cả cửa hàng."""
+    """(Admin) Áp dụng nhanh một chu kỳ quét cho tất cả cửa hàng và đồng bộ chu kỳ mặc định."""
     sources = await GoldSourceService.set_interval_for_all(db, payload.interval_minutes)
+    crawler_manager.interval_minutes = payload.interval_minutes
+    await crawler_manager._upsert_setting(db, "crawler_interval_minutes", str(payload.interval_minutes))
+    await db.commit()
     crawler_manager._sleep_event.set()
     return [GoldSourceOut.model_validate(s) for s in sources]
 

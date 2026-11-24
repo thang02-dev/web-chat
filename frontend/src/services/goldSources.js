@@ -28,6 +28,13 @@ export const goldSourcesApi = {
     return res.data
   },
 
+  async setIntervalAll(intervalMinutes) {
+    const res = await api.put('/admin/gold-sources/interval', {
+      interval_minutes: intervalMinutes
+    })
+    return res.data
+  },
+
   async testSaved(id) {
     const res = await api.post(`/admin/gold-sources/${id}/test`)
     return res.data

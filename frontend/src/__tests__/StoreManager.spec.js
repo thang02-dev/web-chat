@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   reorder: vi.fn(),
+  setIntervalAll: vi.fn(),
   testSaved: vi.fn(),
   testDraft: vi.fn()
 }))
@@ -191,6 +192,18 @@ describe('SM · StoreManager', () => {
     api.listAdmin.mockResolvedValue([])
     const w = await mountManager()
     expect(w.text()).toContain('Chưa có cửa hàng nào')
+  })
+
+  it('SM-015 đặt nhanh chu kỳ cho tất cả cửa hàng gọi setIntervalAll và cập nhật bảng', async () => {
+    api.setIntervalAll.mockResolvedValue(LIST().map((s) => ({ ...s, interval_minutes: 15 })))
+    const w = await mountManager()
+    const pill15 = w.findAll('.bulk-pill-btn').find((b) => b.text().trim() === '15p')
+    await pill15.trigger('click')
+    await w.find('.btn-apply-bulk').trigger('click')
+    await flushPromises()
+    expect(api.setIntervalAll).toHaveBeenCalledWith(15)
+    expect(w.vm.stores.every((s) => s.interval_minutes === 15)).toBe(true)
+    expect(w.emitted('interval-all-changed').at(-1)).toEqual([15])
   })
 })
 
