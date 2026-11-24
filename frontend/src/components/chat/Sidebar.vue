@@ -20,10 +20,7 @@
           title="Trang quản lý người dùng (Admin)"
           @click="router.push('/admin')"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            <path d="M9 12l2 2 4-4"/>
-          </svg>
+          <i class="bi bi-shield-check"></i>
         </button>
 
         <button
@@ -31,7 +28,7 @@
           :title="socketStore.soundEnabled ? 'Tắt âm thanh thông báo' : 'Bật âm thanh thông báo'"
           @click="toggleSound"
         >
-          {{ socketStore.soundEnabled ? '🔔' : '🔕' }}
+          <i :class="socketStore.soundEnabled ? 'bi bi-bell' : 'bi bi-bell-slash'"></i>
         </button>
 
         <button
@@ -39,55 +36,59 @@
           title="Đăng xuất tài khoản"
           @click="authStore.logout"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
+          <i class="bi bi-box-arrow-right"></i>
         </button>
       </div>
     </div>
 
     <!-- Connection Banner (if reconnecting) -->
     <div v-if="!socketStore.isConnected" class="connection-banner">
-      <span class="pulse-dot"></span>
+      <span class="status-indicator"></span>
       <span>Đang kết nối lại máy chủ...</span>
     </div>
 
-    <!-- Messenger-Style Search & Action Toolbar -->
+    <!-- Search & Compose Toolbar -->
     <div class="action-toolbar">
-      <div class="local-search-box">
-        <span class="search-icon">🔍</span>
-        <input
-          v-model="chatStore.sidebarSearchQuery"
-          type="text"
-          class="local-search-input"
-          placeholder="Tìm kiếm trên Messenger..."
-        />
-        <button
-          v-if="chatStore.sidebarSearchQuery"
-          class="clear-search-btn"
-          @click="chatStore.sidebarSearchQuery = ''"
-        >
-          ✕
-        </button>
-      </div>
+      <div class="search-compose-row">
+        <div class="local-search-box">
+          <i class="bi bi-search search-icon"></i>
+          <input
+            v-model="chatStore.sidebarSearchQuery"
+            type="text"
+            class="local-search-input"
+            placeholder="Tìm cuộc trò chuyện..."
+          />
+          <button
+            v-if="chatStore.sidebarSearchQuery"
+            class="clear-search-btn"
+            title="Xóa tìm kiếm"
+            @click="chatStore.sidebarSearchQuery = ''"
+          >
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
 
-      <div class="quick-compose-row">
-        <button class="compose-chip primary" @click="$emit('openSearch', 'direct')">
-          <span>💬</span> Tìm bạn bè
+        <button
+          class="compose-icon-btn"
+          title="Tìm bạn bè"
+          @click="$emit('openSearch', 'direct')"
+        >
+          <i class="bi bi-person-plus"></i>
         </button>
-        <button class="compose-chip group" @click="$emit('openSearch', 'group')">
-          <span>👥</span> Tạo nhóm
+        <button
+          class="compose-icon-btn"
+          title="Tạo nhóm"
+          @click="$emit('openSearch', 'group')"
+        >
+          <i class="bi bi-people"></i>
         </button>
       </div>
     </div>
 
-    <!-- Messenger Active Now (Đang hoạt động) Carousel -->
+    <!-- Active Contacts Strip -->
     <div v-if="chatStore.contactsList.length > 0" class="active-now-section">
       <div class="section-label">
-        <span>Đang hoạt động & Gợi ý</span>
-        <span class="online-counter">{{ onlineContactsCount }} online</span>
+        <span>Đang online · {{ onlineContactsCount }}</span>
       </div>
       <div class="active-carousel">
         <div
@@ -97,7 +98,7 @@
           :title="`${contact.full_name} (@${contact.username})`"
           @click="chatStore.openDirectChatWithUser(contact.id)"
         >
-          <div class="avatar active-avatar" :class="{ 'ring-online': contact.is_online }">
+          <div class="avatar active-avatar">
             <img :src="contact.avatar_url || defaultAvatar" alt="Avatar" />
             <span :class="['status-dot', contact.is_online ? 'online' : 'offline']"></span>
           </div>
@@ -138,12 +139,11 @@
       </div>
 
       <div v-else-if="chatStore.filteredConversations.length === 0" class="empty-state">
-        <div class="empty-icon">💬</div>
         <p v-if="chatStore.sidebarSearchQuery || chatStore.activeFilter !== 'ALL'">
           Không tìm thấy cuộc trò chuyện phù hợp.
         </p>
         <p v-else>
-          Chưa có cuộc trò chuyện nào.<br />Bấm <b>Tìm bạn bè</b> hoặc <b>Tạo nhóm</b> để bắt đầu!
+          Chưa có cuộc trò chuyện nào.
         </p>
       </div>
 
@@ -161,7 +161,9 @@
       >
         <div class="avatar">
           <img :src="getConvAvatar(conv)" alt="Avatar" />
-          <span v-if="conv.type === 'GROUP'" class="group-badge" title="Nhóm chat">👥</span>
+          <span v-if="conv.type === 'GROUP'" class="group-badge" title="Nhóm chat">
+            <i class="bi bi-people-fill"></i>
+          </span>
           <span
             v-else
             :class="['status-dot', conv.other_user?.is_online ? 'online' : 'offline']"
@@ -172,11 +174,11 @@
           <div class="conv-header">
             <div class="conv-title-row">
               <span class="conv-name">{{ conv.name || conv.other_user?.full_name || 'Chat' }}</span>
-              <span
+              <i
                 v-if="conv.pinned_messages?.length > 0"
-                class="pin-mini-icon"
+                class="bi bi-pin-angle-fill pin-mini-icon"
                 title="Có tin nhắn đã ghim"
-              >📌</span>
+              ></i>
             </div>
             <span v-if="conv.last_message" class="conv-time">
               {{ formatSnippetTime(conv.last_message.created_at) }}
@@ -185,7 +187,7 @@
 
           <div class="conv-footer">
             <span v-if="isPartnerTypingInConv(conv.id)" class="conv-snippet typing-highlight">
-              ✍️ Đang soạn tin...
+              Đang soạn tin...
             </span>
             <span v-else class="conv-snippet" :class="{ 'snippet-unread': conv.unread_count > 0 }">
               <span v-if="conv.last_message?.sender_id === authStore.user?.id">Bạn: </span>
@@ -205,10 +207,10 @@
 
     <!-- Bottom Gold Price Navigation -->
     <div class="sidebar-gold-footer">
-      <button class="gold-price-sidebar-btn" @click="router.push('/gold')" title="Xem Bảng Giá Vàng Trực Tuyến">
-        <span class="gold-icon">🪙</span>
-        <span class="gold-text">Bảng Giá Vàng</span>
-        <span class="live-pill">LIVE</span>
+      <button class="gold-price-sidebar-btn" @click="router.push('/gold')" title="Xem bảng giá vàng trực tuyến">
+        <i class="bi bi-graph-up"></i>
+        <span class="gold-text">Bảng giá vàng</span>
+        <i class="bi bi-chevron-right gold-arrow"></i>
       </button>
     </div>
   </aside>
@@ -262,9 +264,9 @@ function getShortName(fullName) {
 
 function formatLastMessageSnippet(msg) {
   if (!msg) return 'Chưa có tin nhắn'
-  if (msg.is_recalled) return '🚫 Tin nhắn đã được thu hồi'
-  if (msg.message_type === 'IMAGE') return '📷 Đã gửi một hình ảnh'
-  if (msg.message_type === 'STICKER') return `✨ Nhãn dán ${msg.content || ''}`
+  if (msg.is_recalled) return 'Tin nhắn đã được thu hồi'
+  if (msg.message_type === 'IMAGE') return '[Hình ảnh]'
+  if (msg.message_type === 'STICKER') return `Nhãn dán ${msg.content || ''}`
   return msg.content || 'Chưa có tin nhắn'
 }
 
@@ -287,9 +289,9 @@ function formatSnippetTime(isoString) {
 
 <style scoped>
 .sidebar {
-  width: 330px;
+  width: 320px;
   background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -299,12 +301,13 @@ function formatSnippetTime(isoString) {
 }
 
 .user-profile-header {
-  padding: 0.875rem 1rem;
-  padding-top: max(0.875rem, env(safe-area-inset-top));
+  border-top: 3px solid var(--accent);
+  padding: 0.75rem 0.875rem;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  border-bottom: 1px solid var(--border-color);
+  gap: 0.65rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .user-meta {
@@ -314,7 +317,7 @@ function formatSnippetTime(isoString) {
 
 .user-name {
   font-weight: 600;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
@@ -328,91 +331,87 @@ function formatSnippetTime(isoString) {
 
 .header-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.15rem;
   align-items: center;
 }
 
 .icon-btn {
   background: none;
   border: none;
-  padding: 0.375rem;
-  border-radius: 0.375rem;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.95rem;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .icon-btn:hover {
-  background: #334155;
+  background-color: var(--bg-hover);
   color: var(--text-main);
 }
 
 .admin-nav-btn {
-  color: #a78bfa;
-}
-.admin-nav-btn:hover {
-  background: rgba(167, 139, 250, 0.2) !important;
-  color: #c4b5fd !important;
+  color: var(--accent);
 }
 
 .logout-btn:hover {
-  background: rgba(239, 68, 68, 0.2) !important;
-  color: #f87171 !important;
+  background-color: var(--danger-soft);
+  color: var(--danger);
 }
 
 .connection-banner {
-  background: #b45309;
-  color: #fef3c7;
-  padding: 0.375rem 0.75rem;
+  background-color: var(--warning-soft);
+  color: var(--warning);
+  border-bottom: 1px solid var(--border);
+  padding: 0.35rem 0.75rem;
   font-size: 0.75rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   justify-content: center;
 }
 
-.pulse-dot {
-  width: 8px;
-  height: 8px;
+.status-indicator {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #fbbf24;
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(0.95); opacity: 1; }
-  50% { transform: scale(1.4); opacity: 0.5; }
-  100% { transform: scale(0.95); opacity: 1; }
+  background-color: var(--warning);
 }
 
 .action-toolbar {
-  padding: 0.75rem 0.875rem 0.5rem;
+  padding: 0.625rem 0.875rem;
+}
+
+.search-compose-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.375rem;
 }
 
 .local-search-box {
+  flex: 1;
   display: flex;
   align-items: center;
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 9999px;
-  padding: 0.4rem 0.75rem;
-  gap: 0.45rem;
-  transition: border-color 0.2s;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.375rem 0.625rem;
+  gap: 0.4rem;
+  transition: border-color 0.12s ease;
+  min-width: 0;
 }
 .local-search-box:focus-within {
-  border-color: var(--primary);
+  border-color: var(--accent);
 }
 
 .search-icon {
-  font-size: 0.825rem;
-  opacity: 0.7;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
 .local-search-input {
@@ -421,7 +420,12 @@ function formatSnippetTime(isoString) {
   border: none;
   outline: none;
   color: var(--text-main);
-  font-size: 0.825rem;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  min-width: 0;
+}
+.local-search-input::placeholder {
+  color: var(--text-muted);
 }
 
 .clear-search-btn {
@@ -429,151 +433,117 @@ function formatSnippetTime(isoString) {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.75rem;
-}
-
-.quick-compose-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.compose-chip {
-  flex: 1;
+  font-size: 0.85rem;
   display: flex;
   align-items: center;
+}
+
+.compose-icon-btn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.5rem;
-  border-radius: 0.5rem;
-  font-size: 0.78rem;
-  font-weight: 600;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-size: 0.9rem;
   cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.15s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.compose-icon-btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.compose-chip.primary {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.35);
-  color: #60a5fa;
-}
-.compose-chip.primary:hover {
-  background: var(--primary);
-  color: #fff;
-}
-
-.compose-chip.group {
-  background: rgba(168, 85, 247, 0.15);
-  border-color: rgba(168, 85, 247, 0.35);
-  color: #c084fc;
-}
-.compose-chip.group:hover {
-  background: #9333ea;
-  color: #fff;
-}
-
-/* Active Now Carousel */
+/* Active Contacts Section */
 .active-now-section {
-  padding: 0.4rem 0.875rem 0.6rem;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.45);
+  padding: 0.25rem 0.875rem 0.625rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .section-label {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-muted);
-  margin-bottom: 0.45rem;
-}
-
-.online-counter {
-  color: #4ade80;
-  font-weight: 700;
+  margin-bottom: 0.4rem;
 }
 
 .active-carousel {
   display: flex;
-  gap: 0.65rem;
+  gap: 0.625rem;
   overflow-x: auto;
-  padding-bottom: 0.2rem;
+  padding-bottom: 0.15rem;
 }
 
 .active-contact-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   cursor: pointer;
-  width: 52px;
+  width: 48px;
   flex-shrink: 0;
-  transition: transform 0.15s;
-}
-.active-contact-item:hover {
-  transform: translateY(-2px);
 }
 
 .active-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  padding: 2px;
-}
-.active-avatar.ring-online {
-  border: 2px solid #22c55e;
+  width: 36px;
+  height: 36px;
 }
 
 .active-contact-name {
   font-size: 0.6875rem;
-  color: #cbd5e1;
-  max-width: 52px;
+  color: var(--text-muted);
+  max-width: 48px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
 }
+.active-contact-item:hover .active-contact-name {
+  color: var(--text-main);
+}
 
-/* Filter Tabs */
+/* Filter Tabs (Underline style) */
 .filter-tabs {
   display: flex;
-  gap: 0.375rem;
-  padding: 0.5rem 0.875rem;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.45);
+  padding: 0 0.875rem;
+  border-bottom: 1px solid var(--border);
+  gap: 1rem;
 }
 
 .filter-tab {
-  flex: 1;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid transparent;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.35rem 0.5rem;
-  border-radius: 9999px;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.5rem 0.15rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
-  transition: all 0.15s;
+  gap: 0.35rem;
+  transition: color 0.12s ease, border-color 0.12s ease;
 }
 .filter-tab:hover {
   color: var(--text-main);
-  background: rgba(51, 65, 85, 0.5);
 }
 .filter-tab.active {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: rgba(59, 130, 246, 0.45);
-  color: #60a5fa;
+  border-bottom-color: var(--accent);
+  color: var(--text-main);
+  font-weight: 600;
 }
 
 .tab-badge {
-  background: #ef4444;
-  color: #fff;
-  font-size: 0.65rem;
+  background-color: var(--highlight);
+  color: var(--on-highlight);
+  font-size: 0.6875rem;
+  font-weight: 600;
   padding: 0 5px;
   border-radius: 9999px;
 }
@@ -592,44 +562,43 @@ function formatSnippetTime(isoString) {
   padding: 2rem 1rem;
   text-align: center;
   color: var(--text-muted);
-  font-size: 0.84rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
-}
-.empty-icon {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
 }
 
 .conversation-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0.875rem;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  gap: 0.7rem;
+  padding: 0.65rem 0.875rem;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background-color 0.12s ease;
 }
 .conversation-item:hover {
-  background-color: #253349;
+  background-color: var(--bg-hover);
 }
 .conversation-item.active {
-  background-color: #1e3a5f;
-  border-left: 3px solid var(--primary);
+  background-color: var(--bg-active);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .conversation-item.unread .conv-name {
-  font-weight: 700;
-  color: #ffffff;
+  font-weight: 600;
+}
+
+.user-profile-header .avatar img {
+  box-shadow: 0 0 0 2px var(--bg-sidebar), 0 0 0 4px var(--accent);
 }
 
 .group-badge {
   position: absolute;
   bottom: -2px;
   right: -2px;
-  background: #7c3aed;
-  color: #fff;
-  font-size: 0.6rem;
-  width: 16px;
-  height: 16px;
+  background-color: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.55rem;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -646,7 +615,7 @@ function formatSnippetTime(isoString) {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.15rem;
 }
 
 .conv-title-row {
@@ -657,7 +626,7 @@ function formatSnippetTime(isoString) {
 }
 
 .conv-name {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.875rem;
   color: var(--text-main);
   white-space: nowrap;
@@ -666,13 +635,18 @@ function formatSnippetTime(isoString) {
 }
 
 .pin-mini-icon {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .conv-time {
   font-size: 0.6875rem;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+.conversation-item.unread .conv-time {
+  color: var(--highlight);
+  font-weight: 600;
 }
 
 .conv-footer {
@@ -683,7 +657,7 @@ function formatSnippetTime(isoString) {
 }
 
 .conv-snippet {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -692,14 +666,13 @@ function formatSnippetTime(isoString) {
 }
 
 .snippet-unread {
-  color: #f8fafc;
+  color: var(--text-main);
   font-weight: 600;
 }
 
 .typing-highlight {
-  color: #38bdf8 !important;
+  color: var(--accent);
   font-style: italic;
-  font-weight: 500;
 }
 
 /* Mobile Responsive */
@@ -714,10 +687,10 @@ function formatSnippetTime(isoString) {
 }
 
 .sidebar-gold-footer {
-  padding: 0.7rem 0.875rem;
-  padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-color);
-  background: rgba(15, 23, 42, 0.6);
+  padding: 0.5rem 0.875rem;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background-color: var(--bg-sidebar);
   flex-shrink: 0;
 }
 
@@ -725,28 +698,22 @@ function formatSnippetTime(isoString) {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0.6rem 0.85rem;
-  background: linear-gradient(135deg, rgba(245, 166, 35, 0.12) 0%, rgba(193, 121, 0, 0.22) 100%);
-  border: 1px solid rgba(245, 166, 35, 0.35);
-  border-radius: 0.5rem;
-  color: #fde68a;
-  font-size: 0.85rem;
-  font-weight: 600;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .gold-price-sidebar-btn:hover {
-  background: linear-gradient(135deg, rgba(245, 166, 35, 0.22) 0%, rgba(193, 121, 0, 0.38) 100%);
-  border-color: #f59e0b;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(245, 166, 35, 0.2);
-  color: #ffffff;
-}
-
-.gold-price-sidebar-btn .gold-icon {
-  font-size: 1.1rem;
+  background-color: var(--bg-hover);
+  color: var(--text-main);
 }
 
 .gold-price-sidebar-btn .gold-text {
@@ -754,20 +721,7 @@ function formatSnippetTime(isoString) {
   text-align: left;
 }
 
-.gold-price-sidebar-btn .live-pill {
-  font-size: 0.625rem;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #ef4444;
-  color: #ffffff;
-  letter-spacing: 0.05em;
-  animation: pulse-live 2s infinite;
-}
-
-@keyframes pulse-live {
-  0% { opacity: 1; }
-  50% { opacity: 0.6; }
-  100% { opacity: 1; }
+.gold-arrow {
+  font-size: 0.75rem;
 }
 </style>

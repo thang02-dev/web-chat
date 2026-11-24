@@ -4,14 +4,22 @@
     <Navbar
       :sse-status="sseStatus"
       :is-crawling="isCrawling"
+      :active-store="activeStore"
       @trigger-crawl="handleTriggerCrawl"
     />
 
     <!-- Hero Header -->
-    <HeroHeader />
+    <HeroHeader :active-store="activeStore" />
 
     <!-- Main Content -->
     <main class="container-fluid px-4 py-4">
+      <!-- Store Selector Tabs (Defaults to first store in admin sort order) -->
+      <StoreTabs
+        :sources="sources"
+        :selected-id="selectedStoreId"
+        @select-store="handleStoreChange"
+      />
+
       <!-- Filter Bar -->
       <FilterBar
         :gold-types="goldTypes"
@@ -22,9 +30,12 @@
       <!-- Empty State -->
       <div v-if="!isLoading && batches.length === 0" class="empty-state-card my-5">
         <i class="bi bi-hourglass-split fs-1 mb-3 d-block text-gold"></i>
-        <h4 class="text-light mb-2">Chưa có dữ liệu giá vàng</h4>
+        <h4 class="text-light mb-2">
+          Chưa có dữ liệu giá vàng{{ activeStore ? ` cho ${activeStore.name}` : '' }}
+        </h4>
         <p class="text-muted mb-0">
-          Nhấn nút <strong>Quét giá ngay</strong> ở góc trên bên phải để bắt đầu cập nhật dữ liệu từ hieuvangtru.vn.
+          Nhấn nút <strong>Quét giá ngay</strong> ở góc trên bên phải để bắt đầu cập nhật dữ liệu từ
+          <strong>{{ activeStore?.name || 'cửa hàng' }}</strong>.
         </p>
       </div>
 
@@ -47,7 +58,7 @@
     </main>
 
     <!-- Footer -->
-    <SiteFooter />
+    <SiteFooter :active-store="activeStore" />
 
     <!-- Toast Notification -->
     <ToastNotification
@@ -69,10 +80,12 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 import Navbar from '@/components/gold/Navbar.vue'
 import HeroHeader from '@/components/gold/HeroHeader.vue'
+import StoreTabs from '@/components/gold/StoreTabs.vue'
 import FilterBar from '@/components/gold/FilterBar.vue'
 import TimelineBatch from '@/components/gold/TimelineBatch.vue'
 import SiteFooter from '@/components/gold/SiteFooter.vue'
@@ -80,6 +93,11 @@ import ToastNotification from '@/components/gold/ToastNotification.vue'
 import DeleteConfirmModal from '@/components/gold/DeleteConfirmModal.vue'
 import '@/assets/gold.css'
 
+const route = useRoute()
+const router = useRouter()
+
+const sources = ref([])
+const selectedStoreId = ref(null)
 const batches = ref([])
 const goldTypes = ref([])
 const selectedType = ref('ALL')
@@ -88,6 +106,11 @@ const isRefreshing = ref(false)
 const isCrawling = ref(false)
 const isLatestHighlighted = ref(false)
 const sseStatus = ref('connecting')
+
+const activeStore = computed(() => {
+  if (!sources.value.length) return null
+  return sources.value.find((s) => s.id === selectedStoreId.value) || sources.value[0]
+})
 
 const deleteModal = ref({
   isOpen: false,
@@ -119,9 +142,28 @@ function showToast(message, type = 'info') {
   }, 4500)
 }
 
+async function fetchSources() {
+  try {
+    const res = await api.get('/prices/sources')
+    const list = Array.isArray(res.data) ? res.data : []
+    sources.value = list
+
+    if (list.length > 0) {
+      const queryId = Number(route?.query?.store)
+      const matched = list.find((s) => s.id === queryId)
+      selectedStoreId.value = matched ? matched.id : list[0].id
+    } else {
+      selectedStoreId.value = null
+    }
+  } catch (err) {
+    console.error('Lỗi nạp danh sách cửa hàng vàng:', err)
+  }
+}
+
 async function fetchGoldTypes() {
   try {
-    const res = await api.get('/prices/types')
+    const params = selectedStoreId.value ? { source_id: selectedStoreId.value } : {}
+    const res = await api.get('/prices/types', { params })
     if (res.data) {
       goldTypes.value = res.data
     }
@@ -138,9 +180,11 @@ async function fetchBatches(highlight = false, toastMsg = null) {
   }
 
   try {
-    const res = await api.get('/prices/batches', {
-      params: { type: selectedType.value }
-    })
+    const params = { type: selectedType.value }
+    if (selectedStoreId.value) {
+      params.source_id = selectedStoreId.value
+    }
+    const res = await api.get('/prices/batches', { params })
     if (res.data) {
       batches.value = res.data
 
@@ -163,6 +207,19 @@ async function fetchBatches(highlight = false, toastMsg = null) {
   }
 }
 
+async function handleStoreChange(storeId) {
+  if (selectedStoreId.value === storeId) return
+  selectedStoreId.value = storeId
+  selectedType.value = 'ALL'
+  batches.value = []
+
+  if (router && route) {
+    router.replace({ query: { ...route.query, store: String(storeId) } }).catch(() => {})
+  }
+
+  await Promise.all([fetchGoldTypes(), fetchBatches(false)])
+}
+
 function handleTypeChange(newType) {
   selectedType.value = newType
   fetchBatches(false)
@@ -173,7 +230,8 @@ async function handleTriggerCrawl() {
   isCrawling.value = true
 
   try {
-    const res = await api.post('/prices/crawl')
+    const params = selectedStoreId.value ? { source_id: selectedStoreId.value } : {}
+    const res = await api.post('/prices/crawl', null, { params })
     const data = res.data
     if (data.saved > 0) {
       await fetchBatches(true, `Quét thành công! Đã lưu ${data.saved} bản ghi mới có biến động giá.`)
@@ -183,7 +241,7 @@ async function handleTriggerCrawl() {
     }
   } catch (err) {
     console.error('Quét thất bại:', err)
-    showToast('Quét thất bại: ' + (err.response?.data?.message || err.message), 'danger')
+    showToast('Quét thất bại: ' + (err.response?.data?.message || err.response?.data?.detail || err.message), 'danger')
   } finally {
     isCrawling.value = false
   }
@@ -198,7 +256,7 @@ async function handleConfirmDelete() {
   const batch = deleteModal.value.batch
   if (!batch) return
 
-  const ids = (batch.cards || []).map(c => c.id).filter(Boolean)
+  const ids = (batch.cards || []).map((c) => c.id).filter(Boolean)
   if (ids.length === 0) {
     showToast('Không tìm thấy bản ghi để xóa.', 'danger')
     deleteModal.value.isOpen = false
@@ -223,7 +281,7 @@ async function handleConfirmDelete() {
 
 // Server-Sent Events (SSE) Real-time Auto-Reload
 function initSSE() {
-  if (typeof(EventSource) === 'undefined') {
+  if (typeof EventSource === 'undefined') {
     sseStatus.value = 'disconnected'
     return
   }
@@ -242,9 +300,12 @@ function initSSE() {
     sseSource.addEventListener('price-update', (event) => {
       try {
         const payload = JSON.parse(event.data)
-        fetchBatches(true, `⚡ Đã cập nhật giá mới (${payload.saved} loại vàng thay đổi)!`)
+        if (payload.source_id && selectedStoreId.value && payload.source_id !== selectedStoreId.value) {
+          return
+        }
+        fetchBatches(true, `Đã cập nhật giá mới (${payload.saved} loại vàng thay đổi).`)
         fetchGoldTypes()
-      } catch (e) {
+      } catch {
         fetchBatches(true)
       }
     })
@@ -260,7 +321,7 @@ function initSSE() {
         initSSE()
       }, reconnectDelay)
     }
-  } catch (err) {
+  } catch {
     sseStatus.value = 'disconnected'
   }
 }
@@ -270,18 +331,20 @@ function startFallbackPolling() {
   fallbackInterval = setInterval(async () => {
     if (sseStatus.value === 'connected') return
     try {
-      const res = await api.get('/prices/version')
+      const params = selectedStoreId.value ? { source_id: selectedStoreId.value } : {}
+      const res = await api.get('/prices/version', { params })
       if (res.data && res.data.latest_time > lastKnownVersion) {
         lastKnownVersion = res.data.latest_time
         await fetchBatches(true)
       }
-    } catch (err) {
+    } catch {
       // Ignore polling errors
     }
   }, 30000)
 }
 
 onMounted(async () => {
+  await fetchSources()
   await Promise.all([fetchGoldTypes(), fetchBatches(false)])
   initSSE()
   startFallbackPolling()
@@ -298,4 +361,3 @@ onUnmounted(() => {
   }
 })
 </script>
-

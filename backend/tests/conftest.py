@@ -49,6 +49,45 @@ async def init_test_db():
                 updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
             );
         """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS gold_sources (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                url TEXT NOT NULL,
+                interval_minutes INTEGER NOT NULL DEFAULT 10,
+                is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                extract_rules TEXT,
+                last_scan_at TIMESTAMPTZ,
+                last_status VARCHAR(20) NOT NULL DEFAULT 'NEVER',
+                last_message TEXT,
+                last_row_count INTEGER NOT NULL DEFAULT 0,
+                last_duration_ms INTEGER,
+                last_strategy VARCHAR(30),
+                created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+            );
+        """))
+        await conn.execute(text("""
+            ALTER TABLE gold_price_history
+            ADD COLUMN IF NOT EXISTS source_id INTEGER REFERENCES gold_sources(id) ON DELETE CASCADE;
+        """))
+        await conn.execute(text("""
+            INSERT INTO gold_sources (name, url, interval_minutes, is_enabled, sort_order)
+            SELECT 'Hiệu Vàng Trữ', 'https://hieuvangtru.vn', 10, TRUE, 0
+            WHERE NOT EXISTS (SELECT 1 FROM gold_sources);
+        """))
+        await conn.execute(text("""
+            INSERT INTO gold_sources (name, url, interval_minutes, is_enabled, sort_order)
+            SELECT 'Ngọc Thịnh Jewelry', 'https://ngocthinh-jewelry.vn', 10, TRUE, 1
+            WHERE (SELECT COUNT(*) FROM gold_sources) = 1
+              AND NOT EXISTS (SELECT 1 FROM gold_sources WHERE url LIKE '%ngocthinh%');
+        """))
+        await conn.execute(text("""
+            UPDATE gold_price_history
+            SET source_id = (SELECT id FROM gold_sources ORDER BY sort_order ASC, id ASC LIMIT 1)
+            WHERE source_id IS NULL
+              AND EXISTS (SELECT 1 FROM gold_sources);
+        """))
     yield
     # Dọn dẹp toàn bộ dữ liệu tạm sinh ra trong quá trình chạy pytest để không làm rác DB thực tế
     async with test_engine.begin() as conn:

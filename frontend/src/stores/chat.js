@@ -5,12 +5,12 @@ import { useAuthStore } from './auth'
 import { useSocketStore } from './socket'
 
 export const CHAT_THEMES = [
-  { id: 'ocean', name: 'Đại Dương Xanh', color: '#3b82f6', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)' },
-  { id: 'love', name: 'Tình Yêu Ngọt Ngào', color: '#ec4899', gradient: 'linear-gradient(135deg, #ff4b72 0%, #a855f7 100%)' },
-  { id: 'cyberpunk', name: 'Cyberpunk Neon', color: '#8b5cf6', gradient: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)' },
-  { id: 'emerald', name: 'Rừng Ngọc Lục Bảo', color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #0d9488 100%)' },
-  { id: 'sunset', name: 'Hoàng Hôn Rực Rỡ', color: '#f59e0b', gradient: 'linear-gradient(135deg, #f97316 0%, #e11d48 100%)' },
-  { id: 'royal', name: 'Hoàng Gia Huyền Bí', color: '#a855f7', gradient: 'linear-gradient(135deg, #7e22ce 0%, #4338ca 100%)' },
+  { id: 'ocean', name: 'Xanh ngọc', color: '#2dd4bf' },
+  { id: 'love', name: 'Hồng san hô', color: '#fb7185' },
+  { id: 'cyberpunk', name: 'Chàm', color: '#818cf8' },
+  { id: 'emerald', name: 'Xanh chanh', color: '#a3e635' },
+  { id: 'sunset', name: 'Cam', color: '#fb923c' },
+  { id: 'royal', name: 'Tím', color: '#c084fc' },
 ]
 
 export const QUICK_EMOJIS = ['👍', '❤️', '🔥', '🎉', '😂', '😮', '💎', '🚀']

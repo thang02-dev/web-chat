@@ -20,7 +20,7 @@ from app.services.user_service import UserService
 from app.services.chat_service import ChatService
 from app.services.gold_service import gold_price_service
 from app.services.gold_crawler_manager import crawler_manager
-from app.api.v1 import auth, users, conversations, gold
+from app.api.v1 import auth, users, conversations, gold, gold_sources
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -119,11 +119,16 @@ app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(conversations.router, prefix=settings.API_V1_STR)
 app.include_router(gold.router, prefix=settings.API_V1_STR)
 app.include_router(gold.router, prefix="/api")
+app.include_router(gold_sources.router, prefix=settings.API_V1_STR)
+app.include_router(gold_sources.router, prefix="/api")
 
 @app.post("/api/crawl", tags=["Gold Prices"])
 @app.post(f"{settings.API_V1_STR}/crawl", tags=["Gold Prices"])
-async def trigger_crawl_direct(db: AsyncSession = Depends(get_db)):
-    return await gold.trigger_crawl(db)
+async def trigger_crawl_direct(
+    source_id: int = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    return await gold.trigger_crawl(source_id=source_id, db=db)
 
 @app.get("/api/v1/system/migrate", tags=["System"])
 @app.post("/api/v1/system/migrate", tags=["System"])

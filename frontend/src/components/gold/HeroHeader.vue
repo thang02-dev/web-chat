@@ -3,18 +3,20 @@
     <div class="container-fluid px-4">
       <div class="hero-content">
         <div class="hero-tag">
-          <i class="bi bi-broadcast-pin"></i> Live Price Monitor
+          <span>Cập nhật tự động</span>
         </div>
-        <h1 class="hero-title">Bảng Giá Vàng Trực Tiếp</h1>
+        <h1 class="hero-title">
+          {{ activeStore ? `Bảng giá vàng – ${activeStore.name}` : 'Bảng giá vàng trực tuyến' }}
+        </h1>
         <p class="hero-subtitle">
-          Tự động cào và theo dõi biến động giá thời gian thực từ
+          Theo dõi biến động giá thời gian thực từ
           <a
-            href="https://hieuvangtru.vn/"
+            :href="storeUrl"
             target="_blank"
             rel="noopener noreferrer"
             class="hero-link"
           >
-            hieuvangtru.vn <i class="bi bi-box-arrow-up-right"></i>
+            {{ storeHostLabel }} <i class="bi bi-box-arrow-up-right"></i>
           </a>
         </p>
       </div>
@@ -23,5 +25,22 @@
 </template>
 
 <script setup>
-</script>
+import { computed } from 'vue'
 
+const props = defineProps({
+  activeStore: {
+    type: Object,
+    default: null
+  }
+})
+
+const storeUrl = computed(() => {
+  return props.activeStore?.url || 'https://hieuvangtru.vn/'
+})
+
+const storeHostLabel = computed(() => {
+  const raw = props.activeStore?.url
+  if (!raw) return 'hieuvangtru.vn'
+  return raw.replace(/^https?:\/\//i, '').replace(/\/$/, '')
+})
+</script>

@@ -10,6 +10,8 @@
         <button
           type="button"
           class="gold-modal-close"
+          title="Đóng"
+          aria-label="Đóng"
           @click="$emit('cancel')"
           :disabled="loading"
         >

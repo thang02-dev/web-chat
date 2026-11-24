@@ -4,10 +4,10 @@
     <aside class="admin-sidebar">
       <div class="sidebar-header">
         <div class="brand-group">
-          <div class="brand-badge-icon">🛡️</div>
+          <div class="brand-badge-icon"><i class="bi bi-shield-check"></i></div>
           <div class="brand-meta">
-            <span class="brand-name">Admin Hub</span>
-            <span class="brand-sub">Hệ Thống Quản Trị</span>
+            <span class="brand-name">Quản trị</span>
+            <span class="brand-sub">Bảng điều khiển hệ thống</span>
           </div>
         </div>
 
@@ -38,6 +38,17 @@
           </div>
           <span class="menu-text">Quản lý người dùng</span>
           <span v-if="stats.total_users" class="menu-pill">{{ stats.total_users }}</span>
+        </button>
+
+        <button
+          :class="['menu-btn', { active: currentTab === 'stores' }]"
+          @click="currentTab = 'stores'"
+        >
+          <div class="menu-icon-wrap">
+            <i class="bi bi-shop"></i>
+          </div>
+          <span class="menu-text">Cửa hàng giá vàng</span>
+          <span v-if="storesCount" class="menu-pill">{{ storesCount }}</span>
         </button>
 
         <button
@@ -81,7 +92,15 @@
             </svg>
           </button>
           <div class="mobile-title-wrap">
-            <h1>{{ currentTab === 'users' ? 'Quản Lý Người Dùng' : 'Cấu Hình Quét Giá' }}</h1>
+            <h1>
+              {{
+                currentTab === 'users'
+                  ? 'Quản Lý Người Dùng'
+                  : currentTab === 'stores'
+                  ? 'Cửa Hàng Giá Vàng'
+                  : 'Cấu Hình Quét Giá'
+              }}
+            </h1>
           </div>
           <img :src="authStore.user?.avatar_url || defaultAvatar" alt="Admin Avatar" class="mobile-avatar" />
         </div>
@@ -92,13 +111,22 @@
             :class="['mobile-tab-btn', { active: currentTab === 'users' }]"
             @click="currentTab = 'users'"
           >
-            <span>👥 Người dùng</span>
+            <i class="bi bi-people"></i>
+            <span>Người dùng</span>
+          </button>
+          <button
+            :class="['mobile-tab-btn', { active: currentTab === 'stores' }]"
+            @click="currentTab = 'stores'"
+          >
+            <i class="bi bi-shop"></i>
+            <span>Cửa hàng</span>
           </button>
           <button
             :class="['mobile-tab-btn', { active: currentTab === 'config' }]"
             @click="currentTab = 'config'"
           >
-            <span>⚙️ Cấu hình</span>
+            <i class="bi bi-sliders"></i>
+            <span>Cấu hình</span>
           </button>
         </div>
       </header>
@@ -106,11 +134,22 @@
       <!-- Desktop Page Title Banner -->
       <header class="desktop-top-bar">
         <div class="desktop-title-group">
-          <h1>{{ currentTab === 'users' ? 'Quản Lý Người Dùng' : 'Cấu Hình Quét Giá Vàng' }}</h1>
+          <h1>
+            {{
+              currentTab === 'users'
+                ? 'Quản Lý Người Dùng'
+                : currentTab === 'stores'
+                ? 'Quản Lý Cửa Hàng Giá Vàng'
+                : 'Cấu Hình Quét Giá Vàng'
+            }}
+          </h1>
           <p class="desktop-sub">
-            {{ currentTab === 'users'
-              ? 'Theo dõi, phân quyền vai trò, khóa/mở khóa và xóa tài khoản thành viên.'
-              : 'Điều chỉnh tần suất tự động gọi sang tiệm vàng và điều khiển cào giá trực tiếp.'
+            {{
+              currentTab === 'users'
+                ? 'Theo dõi, phân quyền vai trò, khóa/mở khóa và xóa tài khoản thành viên.'
+                : currentTab === 'stores'
+                ? 'Thêm, sửa, xóa, kéo thả sắp xếp thứ tự cửa hàng hiển thị và quét thử lấy bảng giá vàng.'
+                : 'Điều chỉnh tần suất tự động gọi sang tiệm vàng và điều khiển cào giá trực tiếp.'
             }}
           </p>
         </div>
@@ -205,7 +244,7 @@
               placeholder="Tìm theo tên, username (@) hoặc email..."
               @input="onSearchInput"
             />
-            <button v-if="searchQuery" class="clear-search" @click="clearSearch">✕</button>
+            <button v-if="searchQuery" class="clear-search" title="Xóa tìm kiếm" aria-label="Xóa tìm kiếm" @click="clearSearch"><i class="bi bi-x-lg"></i></button>
           </div>
 
           <div class="filters-group">
@@ -247,7 +286,7 @@
           </div>
 
           <div v-else-if="filteredUsers.length === 0" class="state-message">
-            <div class="empty-icon">👥</div>
+            <div class="empty-icon"><i class="bi bi-people"></i></div>
             <p>Không tìm thấy người dùng nào phù hợp với điều kiện tìm kiếm.</p>
           </div>
 
@@ -257,12 +296,12 @@
               <table class="users-table">
                 <thead>
                   <tr>
-                    <th>Người Dùng</th>
+                    <th>Người dùng</th>
                     <th>Email</th>
-                    <th>Vai Trò (Role)</th>
-                    <th>Trạng Thái</th>
-                    <th>Ngày Tham Gia</th>
-                    <th class="text-right">Thao Tác</th>
+                    <th>Vai trò</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày tham gia</th>
+                    <th class="text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -289,15 +328,14 @@
 
                     <td>
                       <span :class="['role-pill', u.role === 'ADMIN' ? 'role-admin' : 'role-user']">
-                        <span v-if="u.role === 'ADMIN'" class="role-icon">🛡️</span>
-                        <span v-else class="role-icon">👤</span>
+                        <i :class="u.role === 'ADMIN' ? 'bi bi-shield-check' : 'bi bi-person'"></i>
                         {{ u.role === 'ADMIN' ? 'Quản lý' : 'Người dùng' }}
                       </span>
                     </td>
 
                     <td>
                       <div class="status-cell">
-                        <span v-if="u.is_locked" class="status-badge badge-locked">🔒 Đã khóa</span>
+                        <span v-if="u.is_locked" class="status-badge badge-locked"><i class="bi bi-lock"></i> Đã khóa</span>
                         <span v-else :class="['status-badge', u.is_online ? 'badge-online' : 'badge-offline']">
                           {{ u.is_online ? 'Trực tuyến' : 'Ngoại tuyến' }}
                         </span>
@@ -319,7 +357,8 @@
                           :disabled="actionLoadingId === u.id"
                           @click="confirmRoleChange(u, 'ADMIN')"
                         >
-                          <span>🛡️ Thăng Quản lý</span>
+                          <i class="bi bi-shield-plus"></i>
+                          <span>Thăng Quản lý</span>
                         </button>
 
                         <button
@@ -329,7 +368,8 @@
                           :title="u.id === authStore.user?.id && stats.admin_count <= 1 ? 'Bạn là Quản lý duy nhất, không thể hạ quyền' : 'Chuyển về Người dùng'"
                           @click="confirmRoleChange(u, 'USER')"
                         >
-                          <span>👤 Chuyển Người dùng</span>
+                          <i class="bi bi-person"></i>
+                          <span>Chuyển Người dùng</span>
                         </button>
 
                         <button
@@ -339,7 +379,8 @@
                           :title="u.id === authStore.user?.id ? 'Không thể tự khóa tài khoản của chính mình' : 'Khóa tài khoản này'"
                           @click="confirmLockToggle(u, true)"
                         >
-                          <span>🔒 Khóa</span>
+                          <i class="bi bi-lock"></i>
+                          <span>Khóa</span>
                         </button>
 
                         <button
@@ -349,7 +390,8 @@
                           title="Mở khóa tài khoản"
                           @click="confirmLockToggle(u, false)"
                         >
-                          <span>🔓 Mở khóa</span>
+                          <i class="bi bi-unlock"></i>
+                          <span>Mở khóa</span>
                         </button>
 
                         <button
@@ -364,7 +406,8 @@
                           "
                           @click="confirmDeleteUser(u)"
                         >
-                          <span>🗑️ Xóa</span>
+                          <i class="bi bi-trash"></i>
+                          <span>Xóa</span>
                         </button>
                       </div>
                     </td>
@@ -394,21 +437,22 @@
                   </div>
                   <div class="user-card-role">
                     <span :class="['role-pill', u.role === 'ADMIN' ? 'role-admin' : 'role-user']">
-                      {{ u.role === 'ADMIN' ? '🛡️ Quản lý' : '👤 Người dùng' }}
+                      <i :class="u.role === 'ADMIN' ? 'bi bi-shield-check' : 'bi bi-person'"></i>
+                      {{ u.role === 'ADMIN' ? 'Quản lý' : 'Người dùng' }}
                     </span>
                   </div>
                 </div>
 
                 <div class="user-card-body">
                   <div class="card-info-item">
-                    <span class="info-label">✉ Email</span>
+                    <span class="info-label">Email</span>
                     <span class="info-value email-text">{{ u.email }}</span>
                   </div>
 
                   <div class="card-info-item">
-                    <span class="info-label">● Trạng thái</span>
+                    <span class="info-label">Trạng thái</span>
                     <div class="info-value status-group">
-                      <span v-if="u.is_locked" class="status-badge badge-locked">🔒 Đã khóa</span>
+                      <span v-if="u.is_locked" class="status-badge badge-locked"><i class="bi bi-lock"></i> Đã khóa</span>
                       <span v-else :class="['status-badge', u.is_online ? 'badge-online' : 'badge-offline']">
                         {{ u.is_online ? 'Trực tuyến' : 'Ngoại tuyến' }}
                       </span>
@@ -419,7 +463,7 @@
                   </div>
 
                   <div class="card-info-item">
-                    <span class="info-label">📅 Tham gia</span>
+                    <span class="info-label">Tham gia</span>
                     <span class="info-value date-text">{{ formatDate(u.created_at) }}</span>
                   </div>
                 </div>
@@ -431,7 +475,8 @@
                     :disabled="actionLoadingId === u.id"
                     @click="confirmRoleChange(u, 'ADMIN')"
                   >
-                    <span>🛡️ Thăng Quản lý</span>
+                    <i class="bi bi-shield-plus"></i>
+                    <span>Thăng Quản lý</span>
                   </button>
 
                   <button
@@ -440,7 +485,8 @@
                     :disabled="actionLoadingId === u.id || (u.id === authStore.user?.id && stats.admin_count <= 1)"
                     @click="confirmRoleChange(u, 'USER')"
                   >
-                    <span>👤 Chuyển Người dùng</span>
+                    <i class="bi bi-person"></i>
+                    <span>Chuyển Người dùng</span>
                   </button>
 
                   <button
@@ -449,7 +495,8 @@
                     :disabled="actionLoadingId === u.id || u.id === authStore.user?.id"
                     @click="confirmLockToggle(u, true)"
                   >
-                    <span>🔒 Khóa</span>
+                    <i class="bi bi-lock"></i>
+                    <span>Khóa</span>
                   </button>
 
                   <button
@@ -458,7 +505,8 @@
                     :disabled="actionLoadingId === u.id"
                     @click="confirmLockToggle(u, false)"
                   >
-                    <span>🔓 Mở khóa</span>
+                    <i class="bi bi-unlock"></i>
+                    <span>Mở khóa</span>
                   </button>
 
                   <button
@@ -466,7 +514,8 @@
                     :disabled="actionLoadingId === u.id || u.id === authStore.user?.id || u.username === 'admin'"
                     @click="confirmDeleteUser(u)"
                   >
-                    <span>🗑️ Xóa</span>
+                    <i class="bi bi-trash"></i>
+                    <span>Xóa</span>
                   </button>
                 </div>
               </div>
@@ -475,7 +524,12 @@
         </div>
       </section>
 
-      <!-- ==================== TAB 2: CẤU HÌNH (CRAWLER TIỆM VÀNG) ==================== -->
+      <!-- ==================== TAB 2: QUẢN LÝ CỬA HÀNG GIÁ VÀNG ==================== -->
+      <section v-else-if="currentTab === 'stores'" class="content-tab tab-stores">
+        <StoreManager @toast="showToast" @count-change="storesCount = $event" />
+      </section>
+
+      <!-- ==================== TAB 3: CẤU HÌNH (CRAWLER TIỆM VÀNG) ==================== -->
       <section v-else-if="currentTab === 'config'" class="content-tab tab-config">
         <!-- Live Status & Manual Trigger Header Card -->
         <div class="config-hero-card">
@@ -494,10 +548,10 @@
                 <span>
                   {{
                     crawlerConfig.is_crawling
-                      ? '⚡ Đang quét giá...'
+                      ? 'Đang quét giá...'
                       : crawlerConfig.is_enabled
-                      ? '● Tự động quét (Đang chạy)'
-                      : '⏸ Đã tạm dừng'
+                      ? 'Tự động quét (Đang chạy)'
+                      : 'Đã tạm dừng'
                   }}
                 </span>
               </span>
@@ -511,7 +565,7 @@
               </span>
 
               <span class="crawler-badge badge-source">
-                <span>Nguồn: Tiệm vàng Mi Hồng (hieuvangtru.vn)</span>
+                <span>Nguồn: Đa cửa hàng (Quản lý tại mục Cửa hàng giá vàng)</span>
               </span>
             </div>
 
@@ -552,7 +606,7 @@
         <!-- Interval Configuration Box -->
         <div class="config-settings-card">
           <div class="card-section-title">
-            <h3>⏱ Cài Đặt Chu Kỳ Quét Giá Vàng</h3>
+            <h3>Cài đặt chu kỳ quét giá vàng</h3>
             <p>Hệ thống tự động gọi sang website tiệm vàng định kỳ. Khi phát hiện giá Mua hoặc Bán thay đổi, bản ghi mới sẽ được lưu vào lịch sử và thông báo tức thì.</p>
           </div>
 
@@ -598,7 +652,7 @@
               <span class="addon-text">phút / lần</span>
             </div>
             <p class="input-hint">
-              💡 Ví dụ: Đặt <strong>10 phút</strong> nghĩa là cứ mỗi 10 phút trôi qua, backend sẽ cào giá tiệm vàng 1 lần.
+              Ví dụ: Đặt <strong>10 phút</strong> nghĩa là cứ mỗi 10 phút trôi qua, backend sẽ cào giá tiệm vàng 1 lần.
             </p>
           </div>
 
@@ -606,7 +660,7 @@
 
           <!-- Chat Notification Configuration Section -->
           <div class="card-section-title">
-            <h3>💬 Thông Báo Lịch Sử Call Qua Tin Nhắn</h3>
+            <h3>Thông báo lịch sử call qua tin nhắn</h3>
             <p>Mỗi khi bot thực hiện call kiểm tra giá vàng, hệ thống sẽ tự động gửi tin nhắn báo cáo kết quả từ tài khoản Admin tới tài khoản được chọn.</p>
           </div>
 
@@ -617,7 +671,7 @@
               <span class="sender-desc">Tài khoản hệ thống dùng để gửi thông báo lịch sử bot chạy.</span>
             </div>
             <div class="sender-badge">
-              <span class="sender-shield">🛡️</span>
+              <i class="bi bi-shield-check sender-shield"></i>
               <div class="sender-meta">
                 <span class="sender-title">Administrator</span>
                 <span class="sender-handle">@{{ crawlerConfig.sender_username || 'admin' }}</span>
@@ -645,14 +699,15 @@
                 :key="'chip-' + u.id"
                 class="recipient-chip"
               >
-                <span>🛡️ {{ u.full_name }} (@{{ u.username }})</span>
+                <i class="bi bi-shield-check"></i>
+                <span>{{ u.full_name }} (@{{ u.username }})</span>
                 <button
                   type="button"
                   class="chip-remove-btn"
                   title="Bỏ chọn tài khoản này"
                   @click="removeRecipient(u.id)"
                 >
-                  ✕
+                  <i class="bi bi-x"></i>
                 </button>
               </span>
             </div>
@@ -675,9 +730,11 @@
                     v-if="recipientSearchQuery"
                     type="button"
                     class="recipient-search-clear"
+                    title="Xóa từ khóa"
+                    aria-label="Xóa từ khóa"
                     @click="recipientSearchQuery = ''"
                   >
-                    ✕
+                    <i class="bi bi-x"></i>
                   </button>
                 </div>
 
@@ -688,7 +745,8 @@
                     :disabled="filteredRecipientOptions.length === 0"
                     @click="selectAllFilteredRecipients"
                   >
-                    ✓ Chọn tất cả
+                    <i class="bi bi-check2-all"></i>
+                    <span>Chọn tất cả</span>
                   </button>
                   <button
                     type="button"
@@ -696,7 +754,8 @@
                     :disabled="formNotifyUserIds.length === 0"
                     @click="clearAllRecipients"
                   >
-                    ✕ Bỏ chọn hết
+                    <i class="bi bi-x"></i>
+                    <span>Bỏ chọn hết</span>
                   </button>
                 </div>
               </div>
@@ -718,10 +777,10 @@
                   />
                   <div class="recipient-option-info">
                     <div class="recipient-option-main">
-                      <span class="recipient-shield">🛡️</span>
+                      <i class="bi bi-shield-check recipient-shield"></i>
                       <span class="recipient-fullname">{{ u.full_name }}</span>
                       <span class="recipient-username">@{{ u.username }}</span>
-                      <span v-if="u.is_online" class="recipient-online-dot" title="Đang trực tuyến">● Online</span>
+                      <span v-if="u.is_online" class="recipient-online-dot" title="Đang trực tuyến">· Đang online</span>
                     </div>
                     <span class="recipient-email">{{ u.email }}</span>
                   </div>
@@ -731,7 +790,7 @@
             </div>
 
             <p class="input-hint">
-              📩 Có thể tích chọn <strong>1 hoặc nhiều tài khoản Quản lý (ADMIN)</strong> để cùng nhận tin nhắn báo cáo trực tiếp từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong>.
+              Có thể tích chọn <strong>1 hoặc nhiều tài khoản Quản lý (ADMIN)</strong> để cùng nhận tin nhắn báo cáo trực tiếp từ <strong>@{{ crawlerConfig.sender_username || 'admin' }}</strong>.
             </p>
           </div>
 
@@ -751,7 +810,7 @@
                   :disabled="formNotifyUserIds.length === 0"
                 />
                 <div class="mode-card-content">
-                  <span class="mode-card-title">🔔 Mỗi lần call để kiểm tra giá vàng</span>
+                  <span class="mode-card-title">Mỗi lần call để kiểm tra giá vàng</span>
                   <span class="mode-card-desc">Gửi tin nhắn báo cáo sau mỗi lượt bot quét kiểm tra (kể cả khi giá vàng không thay đổi).</span>
                 </div>
               </label>
@@ -768,7 +827,7 @@
                   :disabled="formNotifyUserIds.length === 0"
                 />
                 <div class="mode-card-content">
-                  <span class="mode-card-title">⚡ Chỉ khi giá thay đổi</span>
+                  <span class="mode-card-title">Chỉ khi giá thay đổi</span>
                   <span class="mode-card-desc">Chỉ gửi tin nhắn báo cáo khi phát hiện giá Mua vào hoặc Bán ra có biến động mới.</span>
                 </div>
               </label>
@@ -779,7 +838,7 @@
           <div class="cleanup-policy-banner">
             <div class="cleanup-info">
               <div class="cleanup-title">
-                <span>🕛 Tự động dọn dẹp tin nhắn bot lúc 00:00 (0h đêm)</span>
+                <span>Tự động dọn dẹp tin nhắn bot lúc 00:00</span>
                 <span class="bot-msg-counter">
                   Đang lưu: <strong>{{ crawlerConfig.bot_message_count || 0 }}</strong> tin nhắn bot
                   ({{ crawlerConfig.bot_unchanged_message_count || 0 }} không đổi, {{ crawlerConfig.bot_changed_message_count || 0 }} có thay đổi)
@@ -816,7 +875,8 @@
             >
               <span v-if="cleaningBotMessages" class="spinner-small"></span>
               <span v-else>
-                {{ formDeleteChangedMessages ? '🧹 Xóa tất cả tin nhắn bot ngay' : '🧹 Xóa tin nhắn bot ngay' }}
+                <i class="bi bi-trash"></i>
+                {{ formDeleteChangedMessages ? 'Xóa tất cả tin nhắn bot ngay' : 'Xóa tin nhắn bot ngay' }}
               </span>
             </button>
           </div>
@@ -843,7 +903,7 @@
         <div class="config-logs-card">
           <div class="logs-header">
             <div class="logs-title">
-              <h3>📋 Nhật Ký Quét Giá Vàng Gần Đây</h3>
+              <h3>Nhật ký quét giá vàng gần đây</h3>
               <p>Lịch sử các lần cào giá (tối đa 25 lần gần nhất) bao gồm thời gian chạy và biến động dữ liệu.</p>
             </div>
             <button class="btn-refresh-logs" :disabled="crawlerLoading" @click="loadCrawlerConfig" title="Làm mới nhật ký">
@@ -882,7 +942,7 @@
                   </td>
                   <td>
                     <span :class="['status-pill', log.status === 'SUCCESS' ? 'status-success' : 'status-error']">
-                      {{ log.status === 'SUCCESS' ? '✓ Thành công' : '✕ Lỗi' }}
+                      {{ log.status === 'SUCCESS' ? 'Thành công' : 'Lỗi' }}
                     </span>
                   </td>
                   <td>
@@ -904,7 +964,7 @@
       <div class="modal-card">
         <div class="modal-header">
           <h3>Xác nhận thay đổi vai trò</h3>
-          <button class="close-btn" @click="showConfirmModal = false">✕</button>
+          <button class="close-btn" title="Đóng" aria-label="Đóng" @click="showConfirmModal = false"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body">
           <p>
@@ -913,11 +973,12 @@
           </p>
           <div class="target-role-preview">
             <span :class="['role-pill', pendingRole === 'ADMIN' ? 'role-admin' : 'role-user']">
-              {{ pendingRole === 'ADMIN' ? '🛡️ Quản lý (ADMIN)' : '👤 Người dùng (USER)' }}
+              <i :class="pendingRole === 'ADMIN' ? 'bi bi-shield-check' : 'bi bi-person'"></i>
+              {{ pendingRole === 'ADMIN' ? 'Quản lý (ADMIN)' : 'Người dùng (USER)' }}
             </span>
           </div>
           <p v-if="targetUser?.id === authStore.user?.id && pendingRole === 'USER'" class="warning-text">
-            ⚠️ <strong>Lưu ý:</strong> Bạn đang hạ quyền Quản lý của chính tài khoản mình. Sau khi hạ quyền, bạn sẽ không còn quyền truy cập trang quản lý này!
+            <strong>Lưu ý:</strong> Bạn đang hạ quyền Quản lý của chính tài khoản mình. Sau khi hạ quyền, bạn sẽ không còn quyền truy cập trang quản lý này.
           </p>
         </div>
         <div class="modal-footer">
@@ -935,9 +996,9 @@
       <div class="modal-card">
         <div class="modal-header">
           <h3 :class="{ 'text-danger': pendingLockState }">
-            {{ pendingLockState ? '🔒 Xác nhận khóa tài khoản' : '🔓 Xác nhận mở khóa tài khoản' }}
+            {{ pendingLockState ? 'Xác nhận khóa tài khoản' : 'Xác nhận mở khóa tài khoản' }}
           </h3>
-          <button class="close-btn" @click="showLockModal = false">✕</button>
+          <button class="close-btn" title="Đóng" aria-label="Đóng" @click="showLockModal = false"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body">
           <p v-if="pendingLockState">
@@ -949,7 +1010,7 @@
             <strong>{{ targetUser?.full_name }} (@{{ targetUser?.username }})</strong> không?
           </p>
           <p v-if="pendingLockState" class="warning-text">
-            ⚠️ <strong>Lưu ý:</strong> Tài khoản này sẽ bị ngắt kết nối ngay lập tức và không thể đăng nhập vào ứng dụng cho đến khi được mở khóa.
+            <strong>Lưu ý:</strong> Tài khoản này sẽ bị ngắt kết nối ngay lập tức và không thể đăng nhập vào ứng dụng cho đến khi được mở khóa.
           </p>
         </div>
         <div class="modal-footer">
@@ -970,8 +1031,8 @@
     <div v-if="showDeleteModal" class="modal-backdrop" @click.self="showDeleteModal = false">
       <div class="modal-card">
         <div class="modal-header">
-          <h3 class="text-danger">🗑️ Xác nhận xóa tài khoản</h3>
-          <button class="close-btn" @click="showDeleteModal = false">✕</button>
+          <h3 class="text-danger">Xác nhận xóa tài khoản</h3>
+          <button class="close-btn" title="Đóng" aria-label="Đóng" @click="showDeleteModal = false"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body">
           <p>
@@ -980,11 +1041,12 @@
           </p>
           <div class="target-role-preview">
             <span :class="['role-pill', targetUser?.role === 'ADMIN' ? 'role-admin' : 'role-user']">
-              {{ targetUser?.role === 'ADMIN' ? '🛡️ Quản lý (ADMIN)' : '👤 Người dùng (USER)' }}
+              <i :class="targetUser?.role === 'ADMIN' ? 'bi bi-shield-check' : 'bi bi-person'"></i>
+              {{ targetUser?.role === 'ADMIN' ? 'Quản lý (ADMIN)' : 'Người dùng (USER)' }}
             </span>
           </div>
           <p class="warning-text danger-box">
-            ⚠️ <strong>Cảnh báo:</strong> Hành động này không thể hoàn tác! Tài khoản cùng toàn bộ lịch sử trò chuyện và tin nhắn của người dùng này sẽ bị xóa vĩnh viễn khỏi hệ thống.
+            <strong>Cảnh báo:</strong> Hành động này không thể hoàn tác. Tài khoản cùng toàn bộ lịch sử trò chuyện và tin nhắn của người dùng này sẽ bị xóa vĩnh viễn khỏi hệ thống.
           </p>
         </div>
         <div class="modal-footer">
@@ -995,7 +1057,8 @@
             @click="executeDeleteUser"
           >
             <span v-if="actionLoadingId" class="spinner-small"></span>
-            <span>🗑️ Xóa vĩnh viễn</span>
+            <i v-else class="bi bi-trash"></i>
+            <span>Xóa vĩnh viễn</span>
           </button>
         </div>
       </div>
@@ -1013,14 +1076,16 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
+import StoreManager from '@/components/admin/StoreManager.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const defaultAvatar = 'https://api.dicebear.com/7.x/bottts/svg?seed=user'
 
-// Navigation Tab ('users' | 'config')
+// Navigation Tab ('users' | 'stores' | 'config')
 const currentTab = ref('users')
+const storesCount = ref(0)
 
 // ==================== User Management State ====================
 const users = ref([])
@@ -1461,17 +1526,18 @@ onBeforeUnmount(() => {
   height: 100%;
   height: var(--app-height, 100dvh);
   width: 100vw;
-  background-color: var(--bg-dark);
+  background-color: var(--bg-app);
   color: var(--text-main);
+  font-family: var(--font-ui);
   overflow: hidden;
   position: relative;
 }
 
 /* ==================== Left Sidebar ==================== */
 .admin-sidebar {
-  width: 260px;
-  background: var(--bg-sidebar);
-  border-right: 1px solid var(--border-color);
+  width: 250px;
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -1479,29 +1545,30 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-header {
-  padding: 1.25rem 1rem 1rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.875rem;
 }
 
 .brand-group {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .brand-badge-icon {
-  width: 36px;
-  height: 36px;
-  background: rgba(168, 85, 247, 0.2);
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  border-radius: 0.5rem;
+  width: 34px;
+  height: 34px;
+  background-color: var(--accent-soft);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .brand-meta {
@@ -1510,14 +1577,14 @@ onBeforeUnmount(() => {
 }
 
 .brand-name {
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: #fff;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-main);
   line-height: 1.2;
 }
 
 .brand-sub {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
 }
 
@@ -1525,74 +1592,75 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.55rem 0.75rem;
-  background: rgba(51, 65, 85, 0.5);
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
+  gap: 0.45rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text-main);
+  font-family: var(--font-ui);
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .back-chat-btn:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
+  background-color: var(--bg-hover);
+  border-color: var(--accent);
 }
 
 /* Navigation Menu */
 .sidebar-menu {
   flex: 1;
-  padding: 1.25rem 0.75rem;
+  padding: 1rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.25rem;
   overflow-y: auto;
 }
 
 .menu-label {
   font-size: 0.6875rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
-  letter-spacing: 0.05em;
-  padding: 0 0.5rem 0.5rem 0.5rem;
+  letter-spacing: 0.04em;
+  padding: 0 0.5rem 0.4rem 0.5rem;
 }
 
 .menu-btn {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0.875rem;
-  border-radius: 0.625rem;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
   background: transparent;
   border: 1px solid transparent;
-  color: #cbd5e1;
-  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.84rem;
   font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, color 0.12s ease;
   width: 100%;
 }
 
 .menu-btn:hover {
-  background: rgba(51, 65, 85, 0.4);
-  color: #fff;
+  background-color: var(--bg-hover);
+  color: var(--text-main);
 }
 
 .menu-btn.active {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.4);
-  color: #60a5fa;
+  background-color: var(--bg-active);
+  color: var(--text-main);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .menu-icon-wrap {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1605,46 +1673,48 @@ onBeforeUnmount(() => {
 
 .menu-pill {
   font-size: 0.6875rem;
-  font-weight: 700;
-  padding: 0.15rem 0.45rem;
-  border-radius: 1rem;
-  background: rgba(148, 163, 184, 0.2);
-  color: #cbd5e1;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
 }
 
 .menu-btn.active .menu-pill {
-  background: rgba(59, 130, 246, 0.25);
-  color: #93c5fd;
+  background-color: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .menu-pill.pill-active {
-  background: rgba(34, 197, 94, 0.2);
-  color: #4ade80;
+  background-color: var(--accent-soft);
+  color: var(--accent);
 }
 
 .menu-pill.pill-paused {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
+  background-color: var(--warning-soft);
+  color: var(--warning);
 }
 
 /* Sidebar Footer */
 .sidebar-footer {
-  padding: 1rem;
-  border-top: 1px solid var(--border-color);
-  background: rgba(15, 23, 42, 0.4);
+  padding: 0.875rem 1rem;
+  border-top: 1px solid var(--border);
+  background-color: var(--bg-sidebar);
 }
 
 .admin-user-card {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .admin-avatar {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  border: 2px solid #a78bfa;
+  border: 1px solid var(--border);
 }
 
 .admin-user-meta {
@@ -1653,14 +1723,14 @@ onBeforeUnmount(() => {
 }
 
 .admin-name {
-  font-size: 0.875rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .admin-role-tag {
-  font-size: 0.7rem;
-  color: #a78bfa;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 /* ==================== Main Content Body ==================== */
@@ -1669,14 +1739,15 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  background-color: var(--bg-dark);
+  background-color: var(--bg-app);
 }
 
 /* Desktop Header */
 .desktop-top-bar {
-  padding: 1.25rem 2rem;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-sidebar);
+  padding: 1.15rem 1.75rem;
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -3px 0 var(--accent);
+  background-color: var(--bg-sidebar);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1684,29 +1755,29 @@ onBeforeUnmount(() => {
 }
 
 .desktop-title-group h1 {
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-main);
   margin: 0;
 }
 
 .desktop-sub {
   font-size: 0.8125rem;
   color: var(--text-muted);
-  margin: 0.25rem 0 0 0;
+  margin: 0.2rem 0 0 0;
 }
 
 .desktop-user-badge {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .profile-avatar {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 2px solid #a78bfa;
+  border: 1px solid var(--border);
 }
 
 .profile-info {
@@ -1715,14 +1786,14 @@ onBeforeUnmount(() => {
 }
 
 .profile-name {
-  font-size: 0.875rem;
+  font-size: 0.84rem;
   font-weight: 600;
   color: var(--text-main);
 }
 
 .profile-role {
-  font-size: 0.75rem;
-  color: #a78bfa;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 /* Mobile Header (Hidden on Desktop) */
@@ -1732,11 +1803,11 @@ onBeforeUnmount(() => {
 
 /* Content Container */
 .content-tab {
-  padding: 1.5rem 2rem;
+  padding: 1.35rem 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  max-width: 1400px;
+  gap: 1.25rem;
+  max-width: 1360px;
   width: 100%;
   margin: 0 auto;
 }
@@ -1744,62 +1815,53 @@ onBeforeUnmount(() => {
 /* ==================== Stats Grid (Users Tab) ==================== */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.875rem;
 }
 
 .stat-card {
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
-  padding: 1.1rem 1.25rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.15rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  border-color: #475569;
+  gap: 0.875rem;
 }
 
 .stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 0.625rem;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
 }
 
-.stat-icon.total { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-.stat-icon.online { background: rgba(34, 197, 94, 0.15); position: relative; }
-.stat-icon.admin { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
-.stat-icon.regular { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
-.stat-icon.locked { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.stat-icon.total { color: var(--accent); background-color: var(--accent-soft); }
+.stat-icon.online { background-color: var(--accent-soft); position: relative; }
+.stat-icon.admin { color: var(--accent); }
+.stat-icon.regular { color: var(--text-muted); }
+.stat-icon.locked { color: var(--danger); background-color: var(--danger-soft); }
+.stat-card:has(.stat-icon.locked) { border-top-color: var(--danger); }
 
 .live-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 10px #22c55e;
-  animation: pulse-green 1.5s infinite;
-}
-
-@keyframes pulse-green {
-  0% { transform: scale(0.9); opacity: 1; }
-  50% { transform: scale(1.3); opacity: 0.6; }
-  100% { transform: scale(0.9); opacity: 1; }
+  background-color: var(--online);
 }
 
 .stat-value {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-label {
@@ -1813,23 +1875,23 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border-color);
-  padding: 0.875rem 1.25rem;
-  border-radius: 0.75rem;
+  gap: 0.875rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
 }
 
 .search-box {
   position: relative;
   flex: 1;
-  min-width: 260px;
-  max-width: 420px;
+  min-width: 240px;
+  max-width: 400px;
 }
 
 .search-icon {
   position: absolute;
-  left: 0.875rem;
+  left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-muted);
@@ -1837,23 +1899,24 @@ onBeforeUnmount(() => {
 
 .search-box input {
   width: 100%;
-  padding: 0.6rem 2.25rem 0.6rem 2.4rem;
-  background: var(--bg-dark);
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
+  padding: 0.5rem 2rem 0.5rem 2.25rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text-main);
-  font-size: 0.875rem;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.12s ease;
 }
 
 .search-box input:focus {
-  border-color: var(--primary);
+  border-color: var(--accent);
 }
 
 .clear-search {
   position: absolute;
-  right: 0.75rem;
+  right: 0.65rem;
   top: 50%;
   transform: translateY(-50%);
   background: none;
@@ -1866,13 +1929,13 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.875rem;
+  gap: 0.75rem;
 }
 
 .filter-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .filter-item label {
@@ -1881,11 +1944,12 @@ onBeforeUnmount(() => {
 }
 
 .filter-item select {
-  background: var(--bg-dark);
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text-main);
-  padding: 0.45rem 0.75rem;
+  font-family: var(--font-ui);
+  padding: 0.4rem 0.65rem;
   font-size: 0.8125rem;
   outline: none;
   cursor: pointer;
@@ -1895,18 +1959,19 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.45rem 0.875rem;
-  background: #334155;
+  padding: 0.425rem 0.8rem;
+  background-color: var(--bg-sidebar);
   color: var(--text-main);
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
   font-size: 0.8125rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease;
 }
 
 .btn-refresh:hover:not(:disabled) {
-  background: #475569;
+  background-color: var(--bg-hover);
 }
 
 .refresh-icon.spinning {
@@ -1920,11 +1985,10 @@ onBeforeUnmount(() => {
 
 /* Table Container */
 .table-container {
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
 }
 
 .desktop-table-view { display: block; }
@@ -1937,32 +2001,30 @@ onBeforeUnmount(() => {
 }
 
 .users-table thead th {
-  background: rgba(15, 23, 42, 0.6);
-  padding: 0.875rem 1.25rem;
+  background-color: var(--bg-sidebar);
+  padding: 0.75rem 1.15rem;
   font-size: 0.75rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--text-muted);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 
 .users-table tbody tr {
-  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-  transition: background 0.15s ease;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.12s ease;
 }
 
 .users-table tbody tr:hover {
-  background: rgba(51, 65, 85, 0.3);
+  background-color: var(--bg-hover);
 }
 
 .current-user-row {
-  background: rgba(59, 130, 246, 0.05);
+  background-color: var(--bg-sidebar);
 }
 
 .users-table tbody td {
-  padding: 0.875rem 1.25rem;
-  font-size: 0.875rem;
+  padding: 0.75rem 1.15rem;
+  font-size: 0.84rem;
   vertical-align: middle;
 }
 
@@ -1971,13 +2033,13 @@ onBeforeUnmount(() => {
 .user-cell {
   display: flex;
   align-items: center;
-  gap: 0.875rem;
+  gap: 0.75rem;
 }
 
 .avatar-wrap {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
 }
 
@@ -1985,7 +2047,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: var(--bg-dark);
+  background-color: var(--bg-hover);
 }
 
 .dot-status {
@@ -1995,11 +2057,11 @@ onBeforeUnmount(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid var(--bg-sidebar);
+  border: 2px solid var(--bg-surface);
 }
 
-.dot-status.online { background: var(--status-online); }
-.dot-status.offline { background: var(--status-offline); }
+.dot-status.online { background-color: var(--online); }
+.dot-status.offline { background-color: var(--offline); }
 
 .user-cell-meta {
   display: flex;
@@ -2007,20 +2069,20 @@ onBeforeUnmount(() => {
 }
 
 .user-cell-meta .name {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-main);
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.35rem;
 }
 
 .you-badge {
   font-size: 0.6875rem;
-  font-weight: 700;
-  color: #60a5fa;
-  background: rgba(59, 130, 246, 0.2);
-  padding: 0.1rem 0.375rem;
-  border-radius: 0.25rem;
+  font-weight: 600;
+  color: var(--accent);
+  background-color: var(--accent-soft);
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radius-sm);
 }
 
 .user-cell-meta .handle {
@@ -2029,148 +2091,145 @@ onBeforeUnmount(() => {
 }
 
 .email-text {
-  color: #cbd5e1;
-  font-family: monospace;
+  color: var(--text-muted);
   font-size: 0.8125rem;
 }
 
 .role-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.65rem;
-  border-radius: 1rem;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .role-admin {
-  background: rgba(168, 85, 247, 0.18);
-  color: #c084fc;
-  border: 1px solid rgba(168, 85, 247, 0.4);
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--border);
 }
 
 .role-user {
-  background: rgba(71, 85, 105, 0.4);
-  color: #cbd5e1;
-  border: 1px solid rgba(71, 85, 105, 0.6);
+  background-color: var(--bg-sidebar);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .status-cell {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
 }
 
 .status-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   width: fit-content;
-  padding: 0.15rem 0.5rem;
-  border-radius: 0.25rem;
+  padding: 0.125rem 0.45rem;
+  border-radius: var(--radius-sm);
 }
 
-.badge-online { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.badge-offline { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
-.badge-locked { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+.badge-online { background-color: var(--accent-soft); color: var(--accent); }
+.badge-offline { background-color: var(--bg-sidebar); color: var(--text-muted); border: 1px solid var(--border); }
+.badge-locked { background-color: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); }
 
 .last-seen { font-size: 0.6875rem; color: var(--text-muted); }
-.date-text { color: var(--text-muted); font-size: 0.8125rem; }
+.date-text { color: var(--text-muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
 
 .action-buttons {
   display: inline-flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .btn-action {
-  border: none;
+  border: 1px solid var(--border);
+  background-color: var(--bg-surface);
+  color: var(--text-main);
   outline: none;
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.375rem;
+  padding: 0.325rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.3rem;
 }
 
-.btn-promote { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
-.btn-promote:hover:not(:disabled) { background: #9333ea; color: #fff; border-color: #9333ea; }
+.btn-promote:hover:not(:disabled) { background-color: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.btn-demote:hover:not(:disabled) { background-color: var(--bg-hover); }
+.btn-lock:hover:not(:disabled) { background-color: var(--warning-soft); color: var(--warning); border-color: var(--warning); }
+.btn-unlock:hover:not(:disabled) { background-color: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.btn-delete { color: var(--danger); }
+.btn-delete:hover:not(:disabled) { background-color: var(--danger-soft); border-color: var(--danger); }
 
-.btn-demote { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-.btn-demote:hover:not(:disabled) { background: #dc2626; color: #fff; border-color: #dc2626; }
-
-.btn-lock { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
-.btn-lock:hover:not(:disabled) { background: #d97706; color: #fff; border-color: #d97706; }
-
-.btn-unlock { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); }
-.btn-unlock:hover:not(:disabled) { background: #16a34a; color: #fff; border-color: #16a34a; }
-
-.btn-delete { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
-.btn-delete:hover:not(:disabled) { background: #dc2626; color: #fff; border-color: #dc2626; }
-
-.btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-action:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .state-message {
-  padding: 4rem 2rem;
+  padding: 3.5rem 2rem;
   text-align: center;
   color: var(--text-muted);
 }
 
-.empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.empty-icon { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-muted); }
 
 /* ==================== TAB 2: CONFIG STYLES ==================== */
 .tab-config {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 /* Config Hero Card */
 .config-hero-card {
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  gap: 1.25rem;
 }
 
 .crawler-status-pill-group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.625rem;
-  margin-bottom: 1rem;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
 }
 
 .crawler-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 1rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background-color: var(--bg-sidebar);
+  color: var(--text-muted);
 }
 
-.badge-running { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
-.badge-crawling { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); animation: pulse-blue 1s infinite alternate; }
-.badge-disabled { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-
-.badge-interval { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
-.badge-source { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+.badge-running { background-color: var(--accent-soft); color: var(--accent); border-color: var(--border); }
+.badge-crawling { background-color: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.badge-disabled { background-color: var(--warning-soft); color: var(--warning); border-color: var(--border); }
+.badge-interval { background-color: var(--bg-sidebar); color: var(--text-main); }
+.badge-source { background-color: var(--bg-sidebar); color: var(--text-muted); }
 
 .crawler-meta-info {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
   font-size: 0.8125rem;
 }
 
@@ -2181,54 +2240,51 @@ onBeforeUnmount(() => {
 }
 
 .meta-title { color: var(--text-muted); }
-.meta-val { color: #fff; font-weight: 500; }
-.highlight-val { color: #f59e0b; }
+.meta-val { color: var(--text-main); font-weight: 500; }
+.highlight-val { color: var(--accent); }
 
 .btn-trigger-crawl {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: #1e1b4b;
-  border: none;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  padding: 0.875rem 1.75rem;
-  border-radius: 2rem;
+  background-color: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid transparent;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 0.625rem;
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
-  transition: all 0.2s ease;
+  gap: 0.5rem;
+  transition: background-color 0.12s ease, opacity 0.12s ease;
   white-space: nowrap;
 }
 
 .btn-trigger-crawl:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+  background-color: var(--accent-hover);
 }
 
 .btn-trigger-crawl:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
-  transform: none;
 }
 
 /* Settings Card */
 .config-settings-card {
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.35rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  gap: 1.15rem;
 }
 
 .card-section-title h3 {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #fff;
-  margin: 0 0 0.35rem 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 0.25rem 0;
 }
 
 .card-section-title p {
@@ -2242,22 +2298,22 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
-  background: rgba(15, 23, 42, 0.4);
-  border-radius: 0.625rem;
-  border: 1px solid rgba(51, 65, 85, 0.4);
+  padding: 0.875rem 1rem;
+  background-color: var(--bg-sidebar);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
 }
 
 .toggle-info {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
 }
 
 .toggle-name {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.875rem;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .toggle-desc {
@@ -2269,8 +2325,8 @@ onBeforeUnmount(() => {
 .switch {
   position: relative;
   display: inline-block;
-  width: 48px;
-  height: 26px;
+  width: 44px;
+  height: 24px;
   flex-shrink: 0;
 }
 
@@ -2280,105 +2336,105 @@ onBeforeUnmount(() => {
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background-color: #475569;
-  transition: 0.3s;
-  border-radius: 26px;
+  background-color: var(--border);
+  transition: 0.15s;
+  border-radius: 24px;
 }
 
 .slider:before {
   position: absolute;
   content: "";
-  height: 20px;
-  width: 20px;
+  height: 18px;
+  width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
+  background-color: #ffffff;
+  transition: 0.15s;
   border-radius: 50%;
 }
 
-input:checked + .slider { background-color: #22c55e; }
-input:checked + .slider:before { transform: translateX(22px); }
+input:checked + .slider { background-color: var(--accent); }
+input:checked + .slider:before { transform: translateX(20px); }
 
 /* Preset Intervals */
 .setting-interval-row {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  gap: 0.5rem;
 }
 
 .setting-label {
   font-size: 0.8125rem;
-  font-weight: 600;
-  color: #cbd5e1;
+  font-weight: 500;
+  color: var(--text-main);
 }
 
 .preset-pills-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .preset-btn {
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  background: rgba(51, 65, 85, 0.4);
-  border: 1px solid var(--border-color);
-  color: #cbd5e1;
+  padding: 0.425rem 0.85rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: var(--font-ui);
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .preset-btn:hover {
-  background: rgba(71, 85, 105, 0.5);
-  color: #fff;
+  background-color: var(--bg-hover);
 }
 
 .preset-btn.active {
-  background: rgba(245, 158, 11, 0.2);
-  border-color: #f59e0b;
-  color: #f59e0b;
-  font-weight: 700;
+  background-color: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* Custom Input */
 .custom-interval-input-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .input-with-addon {
   display: flex;
   align-items: center;
-  max-width: 280px;
+  max-width: 260px;
 }
 
 .input-with-addon input {
   flex: 1;
-  padding: 0.6rem 0.875rem;
-  background: var(--bg-dark);
-  border: 1px solid var(--border-color);
+  padding: 0.5rem 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
   border-right: none;
-  border-radius: 0.5rem 0 0 0.5rem;
-  color: #fff;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-ui);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   outline: none;
 }
 
 .input-with-addon input:focus {
-  border-color: var(--primary);
+  border-color: var(--accent);
 }
 
 .addon-text {
-  padding: 0.6rem 0.875rem;
-  background: #334155;
-  border: 1px solid var(--border-color);
-  border-left: none;
-  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   color: var(--text-muted);
   font-size: 0.8125rem;
 }
@@ -2391,8 +2447,8 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .config-divider {
   border: none;
-  border-top: 1px solid rgba(51, 65, 85, 0.65);
-  margin: 0.5rem 0;
+  border-top: 1px solid var(--border);
+  margin: 0.35rem 0;
 }
 
 /* Chat Notification Settings */
@@ -2402,16 +2458,16 @@ input:checked + .slider:before { transform: translateX(22px); }
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px solid rgba(51, 65, 85, 0.6);
-  border-radius: 0.625rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .sender-label-group {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
 }
 
 .sender-desc {
@@ -2422,15 +2478,16 @@ input:checked + .slider:before { transform: translateX(22px); }
 .sender-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.45rem 0.85rem;
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  border-radius: 0.5rem;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .sender-shield {
-  font-size: 1.1rem;
+  font-size: 1rem;
+  color: var(--accent);
 }
 
 .sender-meta {
@@ -2441,19 +2498,19 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .sender-title {
   font-size: 0.8125rem;
-  font-weight: 700;
-  color: #e9d5ff;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .sender-handle {
-  font-size: 0.7rem;
-  color: #c084fc;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 .notify-recipient-group {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.6rem;
 }
 
 .recipient-header-row {
@@ -2466,60 +2523,60 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .recipient-count-badge {
   font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.2rem 0.65rem;
-  border-radius: 1rem;
+  font-weight: 500;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-sm);
 }
 
 .recipient-count-badge.has-selected {
-  background: rgba(34, 197, 94, 0.16);
-  color: #4ade80;
-  border: 1px solid rgba(34, 197, 94, 0.35);
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--border);
 }
 
 .recipient-count-badge.none-selected {
-  background: rgba(100, 116, 139, 0.2);
-  color: #94a3b8;
-  border: 1px solid rgba(100, 116, 139, 0.35);
+  background-color: var(--bg-sidebar);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .selected-recipients-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.4rem;
 }
 
 .recipient-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.28rem 0.6rem;
-  background: rgba(168, 85, 247, 0.16);
-  border: 1px solid rgba(168, 85, 247, 0.42);
-  border-radius: 1rem;
-  color: #e9d5ff;
-  font-size: 0.78rem;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  background-color: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
 .chip-remove-btn {
   background: none;
   border: none;
-  color: #c084fc;
-  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
   cursor: pointer;
-  padding: 0 0.15rem;
+  padding: 0 0.1rem;
   line-height: 1;
 }
 
 .chip-remove-btn:hover {
-  color: #f87171;
+  color: var(--danger);
 }
 
 .recipient-picker-box {
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid var(--border-color);
-  border-radius: 0.625rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   max-width: 680px;
 }
@@ -2529,10 +2586,10 @@ input:checked + .slider:before { transform: translateX(22px); }
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  padding: 0.65rem 0.75rem;
-  background: rgba(15, 23, 42, 0.75);
-  border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+  gap: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  background-color: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
 }
 
 .recipient-search-input-wrap {
@@ -2551,17 +2608,18 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .recipient-search-input {
   width: 100%;
-  padding: 0.45rem 1.8rem 0.45rem 2rem;
-  background: var(--bg-dark);
-  border: 1px solid var(--border-color);
-  border-radius: 0.45rem;
-  color: #fff;
+  padding: 0.425rem 1.8rem 0.425rem 1.95rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-ui);
   font-size: 0.8125rem;
   outline: none;
 }
 
 .recipient-search-input:focus {
-  border-color: var(--primary);
+  border-color: var(--accent);
 }
 
 .recipient-search-clear {
@@ -2573,45 +2631,46 @@ input:checked + .slider:before { transform: translateX(22px); }
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .recipient-quick-actions {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.375rem;
 }
 
 .btn-recipient-quick {
-  padding: 0.38rem 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.6rem;
+  font-family: var(--font-ui);
   font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 0.4rem;
-  background: rgba(59, 130, 246, 0.16);
-  color: #93c5fd;
-  border: 1px solid rgba(59, 130, 246, 0.35);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.12s ease;
 }
 
 .btn-recipient-quick:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.3);
-  color: #fff;
+  background-color: var(--bg-hover);
 }
 
 .btn-recipient-quick.btn-clear-all {
-  background: rgba(239, 68, 68, 0.14);
-  color: #fca5a5;
-  border-color: rgba(239, 68, 68, 0.35);
+  color: var(--danger);
 }
 
 .btn-recipient-quick.btn-clear-all:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.28);
-  color: #fff;
+  background-color: var(--danger-soft);
+  border-color: var(--danger);
 }
 
 .btn-recipient-quick:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -2627,16 +2686,17 @@ input:checked + .slider:before { transform: translateX(22px); }
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  background-color: var(--bg-surface);
 }
 
 .recipient-option-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.85rem;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+  gap: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background-color 0.12s ease;
   user-select: none;
 }
 
@@ -2645,17 +2705,17 @@ input:checked + .slider:before { transform: translateX(22px); }
 }
 
 .recipient-option-item:hover {
-  background: rgba(51, 65, 85, 0.35);
+  background-color: var(--bg-hover);
 }
 
 .recipient-option-item.selected {
-  background: rgba(168, 85, 247, 0.12);
+  background-color: var(--accent-soft);
 }
 
 .recipient-option-item input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: #a855f7;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -2665,55 +2725,59 @@ input:checked + .slider:before { transform: translateX(22px); }
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.1rem;
 }
 
 .recipient-option-main {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.35rem;
+}
+
+.recipient-shield {
+  color: var(--accent);
+  font-size: 0.8rem;
 }
 
 .recipient-fullname {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-main);
 }
 
 .recipient-username {
-  font-size: 0.78rem;
-  color: #c084fc;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .recipient-online-dot {
-  font-size: 0.68rem;
-  color: #4ade80;
-  font-weight: 600;
+  font-size: 0.6875rem;
+  color: var(--online);
+  font-weight: 500;
 }
 
 .recipient-email {
-  font-size: 0.73rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
-  font-family: monospace;
 }
 
 .recipient-role-tag {
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 0.75rem;
-  background: rgba(168, 85, 247, 0.18);
-  color: #d8b4fe;
-  border: 1px solid rgba(168, 85, 247, 0.35);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.125rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-sidebar);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .notify-mode-group {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  transition: opacity 0.2s ease;
+  gap: 0.5rem;
+  transition: opacity 0.12s ease;
 }
 
 .notify-mode-group.disabled-group {
@@ -2722,48 +2786,47 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .notify-mode-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.65rem;
 }
 
 .notify-mode-card {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px solid var(--border-color);
-  border-radius: 0.625rem;
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .notify-mode-card:hover {
-  border-color: rgba(59, 130, 246, 0.5);
-  background: rgba(30, 41, 59, 0.6);
+  background-color: var(--bg-hover);
 }
 
 .notify-mode-card.active {
-  background: rgba(59, 130, 246, 0.14);
-  border-color: #3b82f6;
+  background-color: var(--accent-soft);
+  border-color: var(--accent);
 }
 
 .notify-mode-card input[type="radio"] {
   margin-top: 0.2rem;
-  accent-color: #3b82f6;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
 .mode-card-content {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
 .mode-card-title {
-  font-size: 0.875rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .mode-card-desc {
@@ -2777,11 +2840,11 @@ input:checked + .slider:before { transform: translateX(22px); }
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 1rem;
-  padding: 0.9rem 1.1rem;
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 0.625rem;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .cleanup-info {
@@ -2796,25 +2859,25 @@ input:checked + .slider:before { transform: translateX(22px); }
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.65rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #fbbf24;
+  gap: 0.55rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .bot-msg-counter {
   font-size: 0.75rem;
   font-weight: 500;
-  padding: 0.15rem 0.55rem;
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  border-radius: 1rem;
-  color: #fde68a;
+  padding: 0.125rem 0.5rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
 }
 
 .cleanup-desc {
   font-size: 0.78rem;
-  color: #cbd5e1;
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.5;
 }
@@ -2822,27 +2885,21 @@ input:checked + .slider:before { transform: translateX(22px); }
 .cleanup-checkbox-row {
   display: inline-flex;
   align-items: flex-start;
-  gap: 0.55rem;
-  margin-top: 0.35rem;
-  padding: 0.55rem 0.75rem;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-  border-radius: 0.5rem;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.65rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   user-select: none;
-  transition: border-color 0.2s ease, background 0.2s ease;
-}
-
-.cleanup-checkbox-row:hover {
-  border-color: rgba(245, 158, 11, 0.55);
-  background: rgba(15, 23, 42, 0.75);
 }
 
 .cleanup-checkbox-row input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   margin-top: 0.15rem;
-  accent-color: #ef4444;
+  accent-color: var(--danger);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -2850,37 +2907,38 @@ input:checked + .slider:before { transform: translateX(22px); }
 .cleanup-checkbox-text {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.1rem;
   font-size: 0.8125rem;
-  color: #fde68a;
+  color: var(--text-main);
   line-height: 1.35;
 }
 
 .cleanup-checkbox-sub {
-  font-size: 0.73rem;
-  color: #94a3b8;
+  font-size: 0.72rem;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
 .btn-cleanup-now {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.9rem;
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  border-radius: 0.5rem;
-  color: #fca5a5;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-family: var(--font-ui);
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
   flex-shrink: 0;
 }
 
 .btn-cleanup-now:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.28);
-  color: #fff;
+  background-color: var(--danger-soft);
+  border-color: var(--danger);
 }
 
 .btn-cleanup-now:disabled {
@@ -2891,27 +2949,27 @@ input:checked + .slider:before { transform: translateX(22px); }
 .settings-actions {
   display: flex;
   justify-content: flex-end;
-  padding-top: 0.5rem;
+  padding-top: 0.35rem;
 }
 
 .btn-save-settings {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 0.5rem;
+  gap: 0.45rem;
+  padding: 0.55rem 1.15rem;
+  background-color: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.12s ease, opacity 0.12s ease;
 }
 
 .btn-save-settings:hover:not(:disabled) {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+  background-color: var(--accent-hover);
 }
 
 .btn-save-settings:disabled {
@@ -2921,14 +2979,13 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 /* Logs Card */
 .config-logs-card {
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.35rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  gap: 0.875rem;
 }
 
 .logs-header {
@@ -2940,10 +2997,10 @@ input:checked + .slider:before { transform: translateX(22px); }
 }
 
 .logs-title h3 {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #fff;
-  margin: 0 0 0.25rem 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 0.2rem 0;
 }
 
 .logs-title p {
@@ -2956,20 +3013,24 @@ input:checked + .slider:before { transform: translateX(22px); }
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.45rem 0.75rem;
-  background: #334155;
-  border: 1px solid var(--border-color);
-  color: #cbd5e1;
+  padding: 0.4rem 0.7rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: var(--font-ui);
   font-size: 0.75rem;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+}
+.btn-refresh-logs:hover:not(:disabled) {
+  background-color: var(--bg-hover);
 }
 
 .empty-logs {
-  padding: 2.5rem;
+  padding: 2rem;
   text-align: center;
   color: var(--text-muted);
-  font-size: 0.875rem;
+  font-size: 0.84rem;
 }
 
 .logs-table-wrap {
@@ -2983,46 +3044,47 @@ input:checked + .slider:before { transform: translateX(22px); }
 }
 
 .logs-table th {
-  background: rgba(15, 23, 42, 0.6);
-  padding: 0.75rem 1rem;
+  background-color: var(--bg-sidebar);
+  padding: 0.65rem 0.9rem;
   color: var(--text-muted);
   font-size: 0.75rem;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
 .logs-table td {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.log-time { font-family: monospace; color: #cbd5e1; }
-.log-duration { color: var(--text-muted); }
+.log-time { font-variant-numeric: tabular-nums; color: var(--text-main); }
+.log-duration { font-variant-numeric: tabular-nums; color: var(--text-muted); }
 .log-message { color: var(--text-muted); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .source-badge {
-  padding: 0.15rem 0.45rem;
-  border-radius: 0.25rem;
+  padding: 0.125rem 0.45rem;
+  border-radius: var(--radius-sm);
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 500;
+  border: 1px solid var(--border);
 }
 
-.source-manual { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
-.source-auto { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+.source-manual { background-color: var(--accent-soft); color: var(--accent); }
+.source-auto { background-color: var(--bg-sidebar); color: var(--text-muted); }
 
 .status-pill {
-  padding: 0.15rem 0.45rem;
-  border-radius: 0.25rem;
+  padding: 0.125rem 0.45rem;
+  border-radius: var(--radius-sm);
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.status-success { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.status-error { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.status-success { background-color: var(--accent-soft); color: var(--accent); }
+.status-error { background-color: var(--danger-soft); color: var(--danger); }
 
 .badge-changed {
-  color: #22c55e;
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -3034,8 +3096,7 @@ input:checked + .slider:before { transform: translateX(22px); }
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  background-color: rgba(2, 6, 16, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3044,72 +3105,64 @@ input:checked + .slider:before { transform: translateX(22px); }
 }
 
 .modal-card {
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   width: 100%;
-  max-width: 480px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+  max-width: 460px;
+  box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
 
 .modal-header {
-  padding: 1.25rem;
-  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.modal-header h3 { font-size: 1.125rem; font-weight: 600; color: #fff; margin: 0; }
-.close-btn { background: none; border: none; color: var(--text-muted); font-size: 1.125rem; cursor: pointer; }
-.modal-body { padding: 1.25rem; font-size: 0.9375rem; line-height: 1.5; }
-.target-role-preview { margin: 1rem 0; display: flex; justify-content: center; }
-.warning-text { color: #fbbf24; font-size: 0.8125rem; background: rgba(245, 158, 11, 0.1); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid rgba(245, 158, 11, 0.3); margin-top: 1rem; }
-.warning-text.danger-box { color: #fca5a5; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.35); }
-.modal-footer { padding: 1rem 1.25rem; background: rgba(15, 23, 42, 0.5); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem; }
-.btn-secondary { background: #334155; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer; }
-.text-danger { color: #ef4444; }
-.btn-danger { background: #dc2626; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
-.btn-danger:hover:not(:disabled) { background: #b91c1c; }
-.btn-success { background: #16a34a; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
-.btn-success:hover:not(:disabled) { background: #15803d; }
+.modal-header h3 { font-size: 1rem; font-weight: 600; color: var(--text-main); margin: 0; }
+.close-btn { background: none; border: none; color: var(--text-muted); font-size: 0.95rem; cursor: pointer; }
+.modal-body { padding: 1.15rem 1.25rem; font-size: 0.875rem; line-height: 1.5; color: var(--text-main); }
+.target-role-preview { margin: 0.875rem 0; display: flex; justify-content: center; }
+.warning-text { color: var(--warning); font-size: 0.8125rem; background-color: var(--warning-soft); padding: 0.65rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-top: 0.875rem; }
+.warning-text.danger-box { color: var(--danger); background-color: var(--danger-soft); border-color: var(--danger); }
+.modal-footer { padding: 0.875rem 1.25rem; background-color: var(--bg-sidebar); border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem; }
+.btn-secondary { background-color: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border); padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; }
+.text-danger { color: var(--danger) !important; }
+.btn-danger { background-color: var(--danger); color: var(--on-danger); border: 1px solid var(--danger); padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; }
+.btn-success { background-color: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; }
 
 /* Toast */
 .toast-alert {
   position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  padding: 0.75rem 1.25rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.84rem;
   font-weight: 500;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-pop);
   z-index: 2000;
-  animation: slide-up 0.3s ease;
 }
-.toast-alert.success { background: #166534; color: #bbf7d0; border: 1px solid #22c55e; }
-.toast-alert.error { background: #991b1b; color: #fecaca; border: 1px solid #ef4444; }
-
-@keyframes slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
+.toast-alert.success { background-color: var(--bg-surface); color: var(--text-main); border: 1px solid var(--accent); }
+.toast-alert.error { background-color: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger); }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--border);
   border-radius: 50%;
-  border-top-color: var(--primary);
+  border-top-color: var(--accent);
   animation: spin 0.8s linear infinite;
-  margin: 0 auto 1rem auto;
+  margin: 0 auto 0.75rem auto;
 }
 
 .spinner-small {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--border);
   border-radius: 50%;
   border-top-color: currentColor;
   animation: spin 0.8s linear infinite;
@@ -3134,7 +3187,6 @@ input:checked + .slider:before { transform: translateX(22px); }
     height: var(--app-height, 100dvh);
   }
 
-  /* Hide Desktop Sidebar */
   .admin-sidebar {
     display: none;
   }
@@ -3143,17 +3195,16 @@ input:checked + .slider:before { transform: translateX(22px); }
     display: none;
   }
 
-  /* Show Mobile Header & Segmented Tabs */
   .mobile-top-header {
     display: flex;
     flex-direction: column;
-    background: var(--bg-sidebar);
-    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
   .mobile-top-row {
-    height: 52px;
+    height: 50px;
     padding: 0 0.875rem;
     display: flex;
     align-items: center;
@@ -3162,12 +3213,12 @@ input:checked + .slider:before { transform: translateX(22px); }
   }
 
   .mobile-back-btn {
-    width: 34px;
-    height: 34px;
-    background: rgba(51, 65, 85, 0.6);
-    border: 1px solid var(--border-color);
-    border-radius: 0.375rem;
-    color: #fff;
+    width: 32px;
+    height: 32px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3180,9 +3231,9 @@ input:checked + .slider:before { transform: translateX(22px); }
   }
 
   .mobile-title-wrap h1 {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-main);
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -3190,45 +3241,47 @@ input:checked + .slider:before { transform: translateX(22px); }
   }
 
   .mobile-avatar {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
-    border: 2px solid #a78bfa;
+    border: 1px solid var(--border);
   }
 
   .mobile-segmented-tabs {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 0.375rem 0.875rem 0.625rem 0.875rem;
-    gap: 0.5rem;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 0.35rem 0.875rem 0.55rem 0.875rem;
+    gap: 0.45rem;
   }
 
   .mobile-tab-btn {
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    background: rgba(15, 23, 42, 0.4);
-    border: 1px solid rgba(51, 65, 85, 0.4);
-    color: #94a3b8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.45rem;
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--font-ui);
     font-size: 0.8125rem;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     text-align: center;
-    transition: all 0.2s ease;
   }
 
   .mobile-tab-btn.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: #fff;
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
   }
 
-  /* Content inside Tab */
   .content-tab {
     padding: 0.75rem;
     gap: 0.75rem;
   }
 
-  /* Table vs Mobile Card for Users */
   .desktop-table-view {
     display: none;
   }
@@ -3236,38 +3289,35 @@ input:checked + .slider:before { transform: translateX(22px); }
   .mobile-cards-view {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    padding: 0.75rem;
+    gap: 0.65rem;
+    padding: 0.5rem;
   }
 
   .table-container {
     background: transparent;
     border: none;
-    box-shadow: none;
   }
 
   .user-card-mobile {
-    background: var(--bg-sidebar);
-    border: 1px solid var(--border-color);
-    border-radius: 0.75rem;
-    padding: 1rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.9rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
+    gap: 0.65rem;
   }
 
   .current-user-card {
-    border-color: rgba(59, 130, 246, 0.5);
-    background: rgba(30, 41, 59, 0.65);
+    border-color: var(--accent);
   }
 
   .user-card-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-    padding-bottom: 0.75rem;
+    gap: 0.65rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.65rem;
   }
 
   .user-card-meta {
@@ -3275,18 +3325,18 @@ input:checked + .slider:before { transform: translateX(22px); }
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.1rem;
   }
 
   .name-row {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.35rem;
   }
 
   .user-name {
     font-weight: 600;
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     color: var(--text-main);
     white-space: nowrap;
     overflow: hidden;
@@ -3305,12 +3355,12 @@ input:checked + .slider:before { transform: translateX(22px); }
   .user-card-body {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.45rem;
     font-size: 0.8125rem;
-    background: rgba(15, 23, 42, 0.4);
-    padding: 0.625rem 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid rgba(51, 65, 85, 0.3);
+    background-color: var(--bg-sidebar);
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
   }
 
   .card-info-item {
@@ -3334,7 +3384,7 @@ input:checked + .slider:before { transform: translateX(22px); }
   .status-group {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.35rem;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
@@ -3342,30 +3392,28 @@ input:checked + .slider:before { transform: translateX(22px); }
   .user-card-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    gap: 0.45rem;
   }
 
   .user-card-actions .btn-action {
     width: 100%;
     justify-content: center;
-    padding: 0.55rem 0.5rem;
+    padding: 0.5rem;
     font-size: 0.8125rem;
-    border-radius: 0.5rem;
   }
 
   .user-card-actions .btn-delete {
     grid-column: span 2;
   }
 
-  /* Stats grid mobile */
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
   }
 
   .stat-card {
-    padding: 0.625rem 0.75rem;
-    gap: 0.625rem;
+    padding: 0.65rem 0.75rem;
+    gap: 0.65rem;
   }
 
   .stat-card:nth-child(5) {
@@ -3373,12 +3421,12 @@ input:checked + .slider:before { transform: translateX(22px); }
   }
 
   .stat-icon {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
   }
 
   .stat-value {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
   }
 
   .stat-label {
@@ -3387,7 +3435,7 @@ input:checked + .slider:before { transform: translateX(22px); }
 
   .toolbar-section {
     padding: 0.75rem;
-    gap: 0.625rem;
+    gap: 0.6rem;
   }
 
   .search-box {
@@ -3406,34 +3454,33 @@ input:checked + .slider:before { transform: translateX(22px); }
   .filter-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.25rem;
+    gap: 0.2rem;
     width: 100%;
   }
 
   .filter-item select {
     width: 100%;
-    padding: 0.5rem;
+    padding: 0.45rem;
   }
 
   .btn-refresh {
     grid-column: span 2;
     width: 100%;
     justify-content: center;
-    padding: 0.55rem;
+    padding: 0.5rem;
   }
 
-  /* Config Hero Mobile */
   .config-hero-card {
     flex-direction: column;
     align-items: stretch;
     padding: 1rem;
-    gap: 1rem;
+    gap: 0.875rem;
   }
 
   .btn-trigger-crawl {
     width: 100%;
     justify-content: center;
-    padding: 0.75rem;
+    padding: 0.65rem;
   }
 
   .preset-pills-grid {
@@ -3447,7 +3494,7 @@ input:checked + .slider:before { transform: translateX(22px); }
   .btn-save-settings {
     width: 100%;
     justify-content: center;
-    padding: 0.75rem;
+    padding: 0.65rem;
   }
 
   .modal-backdrop {

@@ -2,8 +2,10 @@
   <div v-if="isOpen" class="modal-backdrop" @click.self="close">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>{{ activeTab === 'direct' ? '💬 Tìm kiếm bạn bè & Chat 1-1' : '👥 Tạo nhóm trò chuyện mới' }}</h3>
-        <button class="close-btn" @click="close">✕</button>
+        <h3>{{ activeTab === 'direct' ? 'Tìm bạn bè' : 'Tạo nhóm trò chuyện' }}</h3>
+        <button class="close-btn" title="Đóng" @click="close">
+          <i class="bi bi-x-lg"></i>
+        </button>
       </div>
 
       <!-- Mode Switch Tabs -->
@@ -12,13 +14,15 @@
           :class="['modal-tab-btn', { active: activeTab === 'direct' }]"
           @click="activeTab = 'direct'"
         >
-          💬 Trò chuyện 1-1
+          <i class="bi bi-person"></i>
+          <span>Trò chuyện 1-1</span>
         </button>
         <button
           :class="['modal-tab-btn', { active: activeTab === 'group' }]"
           @click="activeTab = 'group'"
         >
-          👥 Tạo Nhóm Chat
+          <i class="bi bi-people"></i>
+          <span>Tạo nhóm</span>
         </button>
       </div>
 
@@ -28,7 +32,7 @@
           v-model="groupName"
           type="text"
           class="input-field"
-          placeholder="Nhập tên nhóm (VD: Team Dự Án, Hội Bạn Thân...)"
+          placeholder="Nhập tên nhóm (ví dụ: Nhóm dự án)"
         />
 
         <div v-if="selectedGroupMembers.length > 0" class="selected-members-chips">
@@ -38,7 +42,9 @@
             class="member-chip"
           >
             {{ m.full_name }}
-            <button type="button" @click="toggleSelectMember(m)">✕</button>
+            <button type="button" title="Bỏ chọn" @click="toggleSelectMember(m)">
+              <i class="bi bi-x"></i>
+            </button>
           </span>
         </div>
       </div>
@@ -81,7 +87,7 @@
           <div class="user-info">
             <div class="user-name">{{ user.full_name }}</div>
             <div class="user-handle">
-              @{{ user.username }} • {{ user.is_online ? '🟢 Online' : 'Offline' }}
+              @{{ user.username }} · {{ user.is_online ? 'Đang online' : 'Ngoại tuyến' }}
             </div>
           </div>
 
@@ -97,7 +103,8 @@
             type="button"
             :class="['btn chat-action-btn', isMemberSelected(user.id) ? 'btn-selected' : 'btn-outline']"
           >
-            {{ isMemberSelected(user.id) ? '✓ Đã chọn' : '+ Chọn' }}
+            <i :class="isMemberSelected(user.id) ? 'bi bi-check2' : 'bi bi-plus'"></i>
+            <span>{{ isMemberSelected(user.id) ? 'Đã chọn' : 'Chọn' }}</span>
           </button>
         </div>
       </div>
@@ -110,7 +117,7 @@
           :disabled="!groupName.trim() || selectedGroupMembers.length === 0 || creatingGroup"
           @click="handleCreateGroup"
         >
-          {{ creatingGroup ? 'Đang tạo nhóm...' : '🚀 Tạo Nhóm Ngay' }}
+          {{ creatingGroup ? 'Đang tạo nhóm...' : 'Tạo nhóm' }}
         </button>
       </div>
     </div>
@@ -245,21 +252,21 @@ function close() {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background-color: rgba(2, 6, 16, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
 }
 
 .modal-card {
   width: 92%;
-  max-width: 480px;
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 1rem;
-  padding: 1.35rem;
+  max-width: 460px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
   max-height: 84vh;
@@ -269,50 +276,60 @@ function close() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.75rem;
 }
 
 .modal-header h3 {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #f8fafc;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .close-btn {
   background: none;
   border: none;
-  color: #94a3b8;
-  font-size: 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
   cursor: pointer;
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+}
+.close-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
 }
 
 .modal-tabs {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  gap: 1rem;
+  margin-bottom: 0.875rem;
 }
 
 .modal-tab-btn {
-  flex: 1;
-  padding: 0.45rem;
-  border-radius: 0.5rem;
-  background: #0f172a;
-  border: 1px solid #334155;
-  color: #94a3b8;
-  font-size: 0.82rem;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.25rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
 }
 .modal-tab-btn.active {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: var(--primary);
-  color: #60a5fa;
+  border-bottom-color: var(--accent);
+  color: var(--text-main);
+  font-weight: 600;
 }
 
 .group-setup-box {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
 
@@ -325,19 +342,21 @@ function close() {
 .member-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  background: rgba(168, 85, 247, 0.2);
-  border: 1px solid rgba(168, 85, 247, 0.45);
-  color: #e9d5ff;
+  gap: 0.25rem;
+  background-color: var(--accent-soft);
+  border: 1px solid var(--border);
+  color: var(--text-main);
   font-size: 0.75rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: 9999px;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
 }
 .member-chip button {
   background: none;
   border: none;
-  color: #e9d5ff;
+  color: var(--text-muted);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
 }
 
 .search-input-wrapper {
@@ -345,7 +364,7 @@ function close() {
 }
 
 .modal-error {
-  color: #f87171;
+  color: var(--danger);
   font-size: 0.78rem;
   margin-bottom: 0.5rem;
 }
@@ -354,7 +373,7 @@ function close() {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.375rem;
   min-height: 180px;
   max-height: 300px;
 }
@@ -364,8 +383,8 @@ function close() {
   align-items: center;
   justify-content: center;
   height: 140px;
-  color: #94a3b8;
-  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
   text-align: center;
 }
 
@@ -373,15 +392,15 @@ function close() {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.6rem;
-  border-radius: 0.5rem;
-  background: #0f172a;
-  border: 1px solid #334155;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background-color 0.12s ease;
 }
 .user-item:hover {
-  background: #253349;
+  background-color: var(--bg-hover);
 }
 
 .user-info {
@@ -390,36 +409,36 @@ function close() {
 }
 
 .user-name {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #f8fafc;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-main);
 }
 
 .user-handle {
-  font-size: 0.72rem;
-  color: #94a3b8;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .chat-action-btn {
-  padding: 0.35rem 0.75rem;
+  padding: 0.35rem 0.7rem;
   font-size: 0.75rem;
 }
 
 .btn-outline {
-  background: transparent;
-  border: 1px solid #475569;
-  color: #cbd5e1;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-main);
 }
 
 .btn-selected {
-  background: #10b981;
-  color: #fff;
+  background-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .modal-footer {
   margin-top: 0.85rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #334155;
+  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -427,6 +446,6 @@ function close() {
 
 .selected-count {
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 </style>

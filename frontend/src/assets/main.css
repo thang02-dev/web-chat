@@ -1,78 +1,188 @@
 :root {
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  --accent-color: #60a5fa;
-  --bg-dark: #0f172a;
-  --bg-sidebar: #1e293b;
-  --bg-chat: #0f172a;
-  --bg-chat-pattern: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.07) 0%, transparent 50%),
-                     radial-gradient(circle at 80% 80%, rgba(37, 99, 235, 0.07) 0%, transparent 50%);
-  --bg-input: #1e293b;
-  --bg-message-in: #334155;
-  --bg-message-out: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border-color: #334155;
-  --status-online: #22c55e;
-  --status-offline: #64748b;
-  --danger: #ef4444;
+  --font-ui: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Nền đen xanh (mặc định) */
+  --bg-app: #0a1020;
+  --bg-sidebar: #0f1830;
+  --bg-surface: #141f3a;
+  --bg-hover: #1a2745;
+  --bg-active: #213258;
+  --text-main: #eaf0fb;
+  --text-muted: #9aa8c7;
+  --border: #243256;
+
+  /* Điểm nhấn chính: ngọc lam */
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-soft: #123a3a;
+  --on-accent: #04201c;
+
+  /* Điểm nhấn phụ: hổ phách (badge chưa đọc, LIVE, highlight tìm kiếm) */
+  --highlight: #fbbf24;
+  --highlight-hover: #fcd34d;
+  --highlight-soft: #3a2d0f;
+  --on-highlight: #1f1400;
+
+  --msg-out-bg: #0f766e;
+  --msg-out-text: #f0fdfa;
+  --msg-in-bg: #141f3a;
+  --msg-in-border: #243256;
+
+  --danger: #f87171;
+  --danger-soft: #3a1620;
+  --on-danger: #2a0a0a;
+  --warning: #fbbf24;
+  --warning-soft: #3a2d0f;
+  --online: #34d399;
+  --offline: #6b7a99;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-tail: 3px;
+  --shadow-pop: 0 6px 20px rgba(0, 0, 0, 0.5);
   --app-height: 100dvh;
+
+  /* Backward-compatible variable aliases */
+  --primary: var(--accent);
+  --primary-hover: var(--accent-hover);
+  --accent-color: var(--accent);
+  --bg-dark: var(--bg-app);
+  --bg-chat: var(--bg-app);
+  --bg-input: var(--bg-surface);
+  --bg-message-in: var(--msg-in-bg);
+  --bg-message-out: var(--msg-out-bg);
+  --border-color: var(--border);
+  --status-online: var(--online);
+  --status-offline: var(--offline);
 }
 
-/* Messenger-Style Chat Themes */
+/* Chủ đề hội thoại – màu phẳng, đủ sáng để nổi trên nền đen xanh */
 .theme-ocean {
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --accent-color: #60a5fa;
-  --bg-message-out: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
-  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(14, 165, 233, 0.10) 0%, transparent 45%),
-                     radial-gradient(circle at 85% 80%, rgba(37, 99, 235, 0.10) 0%, transparent 45%);
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-soft: #123a3a;
+  --msg-out-bg: #0f766e;
+  --msg-out-text: #f0fdfa;
 }
 
 .theme-love {
-  --primary: #ec4899;
-  --primary-hover: #db2777;
-  --accent-color: #f472b6;
-  --bg-message-out: linear-gradient(135deg, #ff4b72 0%, #a855f7 100%);
-  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(236, 72, 153, 0.12) 0%, transparent 45%),
-                     radial-gradient(circle at 85% 80%, rgba(168, 85, 247, 0.12) 0%, transparent 45%);
+  --accent: #fb7185;
+  --accent-hover: #fda4af;
+  --accent-soft: #3b1a2a;
+  --msg-out-bg: #be123c;
+  --msg-out-text: #fff1f2;
 }
 
 .theme-cyberpunk {
-  --primary: #8b5cf6;
-  --primary-hover: #7c3aed;
-  --accent-color: #38bdf8;
-  --bg-message-out: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
-  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.14) 0%, transparent 45%),
-                     radial-gradient(circle at 85% 80%, rgba(236, 72, 153, 0.12) 0%, transparent 45%);
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-soft: #1f2447;
+  --msg-out-bg: #4f46e5;
+  --msg-out-text: #eef2ff;
 }
 
 .theme-emerald {
-  --primary: #10b981;
-  --primary-hover: #059669;
-  --accent-color: #34d399;
-  --bg-message-out: linear-gradient(135deg, #10b981 0%, #0d9488 100%);
-  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(16, 185, 129, 0.11) 0%, transparent 45%),
-                     radial-gradient(circle at 85% 80%, rgba(13, 148, 136, 0.11) 0%, transparent 45%);
+  --accent: #a3e635;
+  --accent-hover: #bef264;
+  --accent-soft: #26330f;
+  --msg-out-bg: #4d7c0f;
+  --msg-out-text: #f7fee7;
 }
 
 .theme-sunset {
-  --primary: #f59e0b;
-  --primary-hover: #d97706;
-  --accent-color: #fbbf24;
-  --bg-message-out: linear-gradient(135deg, #f97316 0%, #e11d48 100%);
-  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(249, 115, 22, 0.12) 0%, transparent 45%),
-                     radial-gradient(circle at 85% 80%, rgba(225, 29, 72, 0.11) 0%, transparent 45%);
+  --accent: #fb923c;
+  --accent-hover: #fdba74;
+  --accent-soft: #3b2412;
+  --msg-out-bg: #c2410c;
+  --msg-out-text: #fff7ed;
 }
 
 .theme-royal {
-  --primary: #a855f7;
-  --primary-hover: #9333ea;
-  --accent-color: #c084fc;
-  --bg-message-out: linear-gradient(135deg, #7e22ce 0%, #4338ca 100%);
-  --bg-chat-pattern: radial-gradient(circle at 15% 20%, rgba(168, 85, 247, 0.12) 0%, transparent 45%),
-                     radial-gradient(circle at 85% 80%, rgba(67, 56, 202, 0.12) 0%, transparent 45%);
+  --accent: #c084fc;
+  --accent-hover: #d8b4fe;
+  --accent-soft: #2d1f47;
+  --msg-out-bg: #7e22ce;
+  --msg-out-text: #faf5ff;
+}
+
+/* Giao diện sáng: chỉ bật khi <html data-theme="light"> */
+[data-theme='light'] {
+  --bg-app: #faf9f6;
+  --bg-sidebar: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-hover: #f3f0ea;
+  --bg-active: #ebe6dc;
+  --text-main: #24211d;
+  --text-muted: #635c53;
+  --border: #e8e3d9;
+  --accent: #2f6f5e;
+  --accent-hover: #265a4c;
+  --accent-soft: #e6f2ec;
+  --on-accent: #ffffff;
+  --highlight: #9a4a06;
+  --highlight-hover: #7c3a05;
+  --highlight-soft: #fef3c7;
+  --on-highlight: #ffffff;
+  --msg-out-bg: #e0f0e7;
+  --msg-out-text: #1d2b25;
+  --msg-in-bg: #ffffff;
+  --msg-in-border: #e8e3d9;
+  --danger: #b4432f;
+  --danger-soft: #fdf1ee;
+  --on-danger: #ffffff;
+  --warning: #8f5e10;
+  --warning-soft: #fef7e6;
+  --online: #3a9b6e;
+  --offline: #9e9689;
+  --shadow-pop: 0 4px 16px rgba(36, 33, 29, 0.1);
+}
+
+[data-theme='light'] .theme-ocean {
+  --accent: #2f6f5e;
+  --accent-hover: #265a4c;
+  --accent-soft: #e6f2ec;
+  --msg-out-bg: #e0f0e7;
+  --msg-out-text: #1d2b25;
+}
+
+[data-theme='light'] .theme-love {
+  --accent: #9e475b;
+  --accent-hover: #843a4b;
+  --accent-soft: #faedf0;
+  --msg-out-bg: #f8e2e5;
+  --msg-out-text: #331a20;
+}
+
+[data-theme='light'] .theme-cyberpunk {
+  --accent: #4c5280;
+  --accent-hover: #3d4269;
+  --accent-soft: #eceef8;
+  --msg-out-bg: #e7e9f6;
+  --msg-out-text: #1f2236;
+}
+
+[data-theme='light'] .theme-emerald {
+  --accent: #55702f;
+  --accent-hover: #435a25;
+  --accent-soft: #eff4e3;
+  --msg-out-bg: #e9f1da;
+  --msg-out-text: #222c14;
+}
+
+[data-theme='light'] .theme-sunset {
+  --accent: #9a5226;
+  --accent-hover: #7f431e;
+  --accent-soft: #faeee3;
+  --msg-out-bg: #f9e9d3;
+  --msg-out-text: #332012;
+}
+
+[data-theme='light'] .theme-royal {
+  --accent: #674c78;
+  --accent-hover: #533c61;
+  --accent-soft: #f2ecf6;
+  --msg-out-bg: #ede5f3;
+  --msg-out-text: #281e30;
 }
 
 * {
@@ -90,8 +200,8 @@ html, body {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: var(--bg-dark);
+  font-family: var(--font-ui);
+  background-color: var(--bg-app);
   color: var(--text-main);
   position: fixed;
   top: 0;
@@ -128,11 +238,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
+  background: var(--border);
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--text-muted);
 }
 
 /* Utilities */
@@ -140,59 +250,77 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  border-radius: 0.5rem;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
   font-weight: 500;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
+  transition: background-color 0.12s ease, opacity 0.12s ease, border-color 0.12s ease;
+  border: 1px solid transparent;
   outline: none;
 }
 .btn-primary {
-  background: var(--primary);
-  color: #fff;
+  background-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background-color: var(--accent-hover);
 }
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  border-color: var(--border);
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--accent);
 }
 
 .input-field {
   width: 100%;
-  padding: 0.625rem 0.875rem;
-  background: #1e293b;
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
+  padding: 0.575rem 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text-main);
+  font-family: var(--font-ui);
   font-size: 0.875rem;
-  transition: border-color 0.2s;
+  transition: border-color 0.12s ease;
   outline: none;
 }
+.input-field::placeholder {
+  color: var(--text-muted);
+  opacity: 0.75;
+}
 .input-field:focus {
-  border-color: var(--primary);
+  border-color: var(--accent);
 }
 
+/* Badge số chưa đọc dùng màu nhấn phụ để nổi bật */
 .badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.125rem 0.425rem;
+  padding: 0.1rem 0.45rem;
   font-size: 0.72rem;
   font-weight: 700;
   border-radius: 9999px;
-  background-color: var(--primary);
-  color: #fff;
+  background-color: var(--highlight);
+  color: var(--on-highlight);
 }
 
 .avatar {
   position: relative;
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   overflow: visible;
   flex-shrink: 0;
@@ -202,31 +330,30 @@ body {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  background: #334155;
+  background-color: var(--bg-hover);
 }
 .status-dot {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 2px solid var(--bg-sidebar);
 }
 .status-dot.online {
-  background-color: var(--status-online);
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+  background-color: var(--online);
 }
 .status-dot.offline {
-  background-color: var(--status-offline);
+  background-color: var(--offline);
 }
 
 @keyframes msgHighlightFlash {
-  0% { background-color: rgba(56, 189, 248, 0.35); transform: scale(1.01); }
-  100% { background-color: transparent; transform: scale(1); }
+  0% { background-color: var(--accent-soft); }
+  100% { background-color: transparent; }
 }
 
 .highlight-flash {
-  animation: msgHighlightFlash 1.8s ease-out;
-  border-radius: 0.75rem;
+  animation: msgHighlightFlash 1.5s ease-out;
+  border-radius: var(--radius-md);
 }

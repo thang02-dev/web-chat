@@ -165,6 +165,74 @@ MIGRATION_STATEMENTS: List[tuple[str, str]] = [
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_recalled BOOLEAN DEFAULT FALSE NOT NULL;",
         "add_messages_is_recalled"
     ),
+
+    # 9. gold_sources table & multi-store support
+    (
+        """
+        CREATE TABLE IF NOT EXISTS gold_sources (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            url TEXT NOT NULL,
+            interval_minutes INTEGER NOT NULL DEFAULT 10,
+            is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            extract_rules TEXT,
+            last_scan_at TIMESTAMPTZ,
+            last_status VARCHAR(20) NOT NULL DEFAULT 'NEVER',
+            last_message TEXT,
+            last_row_count INTEGER NOT NULL DEFAULT 0,
+            last_duration_ms INTEGER,
+            last_strategy VARCHAR(30),
+            created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+        );
+        """,
+        "create_gold_sources"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS ix_gold_sources_sort_order ON gold_sources (sort_order);",
+        "idx_gold_sources_sort_order"
+    ),
+    (
+        """
+        ALTER TABLE gold_price_history
+        ADD COLUMN IF NOT EXISTS source_id INTEGER REFERENCES gold_sources(id) ON DELETE CASCADE;
+        """,
+        "add_gold_price_history_source_id"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS ix_gold_price_history_source_id ON gold_price_history (source_id);",
+        "idx_gold_price_history_source_id"
+    ),
+    (
+        "CREATE INDEX IF NOT EXISTS ix_gold_source_type_updated ON gold_price_history (source_id, gold_type, updated_at);",
+        "idx_gold_source_type_updated"
+    ),
+    (
+        """
+        INSERT INTO gold_sources (name, url, interval_minutes, is_enabled, sort_order)
+        SELECT 'Hiệu Vàng Trữ', 'https://hieuvangtru.vn', 10, TRUE, 0
+        WHERE NOT EXISTS (SELECT 1 FROM gold_sources);
+        """,
+        "seed_default_gold_source_hieuvangtru"
+    ),
+    (
+        """
+        INSERT INTO gold_sources (name, url, interval_minutes, is_enabled, sort_order)
+        SELECT 'Ngọc Thịnh Jewelry', 'https://ngocthinh-jewelry.vn', 10, TRUE, 1
+        WHERE (SELECT COUNT(*) FROM gold_sources) = 1
+          AND NOT EXISTS (SELECT 1 FROM gold_sources WHERE url LIKE '%ngocthinh%');
+        """,
+        "seed_default_gold_source_ngocthinh"
+    ),
+    (
+        """
+        UPDATE gold_price_history
+        SET source_id = (SELECT id FROM gold_sources ORDER BY sort_order ASC, id ASC LIMIT 1)
+        WHERE source_id IS NULL
+          AND EXISTS (SELECT 1 FROM gold_sources);
+        """,
+        "backfill_gold_price_history_source_id"
+    ),
 ]
 
 
@@ -274,16 +342,18 @@ async def verify_db_schema() -> Dict[str, Any]:
 
             # Determine overall health
             has_gold = "gold_price_history" in tables
+            has_gold_sources = "gold_sources" in tables
             has_locked = "is_locked" in report["users_columns"]
             has_role = "role" in report["users_columns"]
             has_settings = "system_settings" in tables
 
-            if has_gold and has_locked and has_role and has_settings:
+            if has_gold and has_gold_sources and has_locked and has_role and has_settings:
                 report["status"] = "HEALTHY"
             else:
                 report["status"] = "PARTIAL"
                 report["missing"] = {
                     "gold_price_history": not has_gold,
+                    "gold_sources": not has_gold_sources,
                     "users.is_locked": not has_locked,
                     "users.role": not has_role,
                     "system_settings": not has_settings,

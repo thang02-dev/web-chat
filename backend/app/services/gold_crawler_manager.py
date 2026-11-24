@@ -7,15 +7,15 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Set, Union
 
 import httpx
 from sqlalchemy import text, select, delete, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
-from app.models.models import User, Message, ConversationMember, GoldPriceHistory
-from app.services.gold_service import gold_price_service
+from app.models.models import User, Message, ConversationMember, GoldPriceHistory, GoldSource
+from app.services.gold_service import gold_price_service, GoldSourceService
 from app.services.chat_service import ChatService
 from app.websocket.manager import manager
 
@@ -49,6 +49,8 @@ class GoldCrawlerManager:
         self.interval_minutes: int = 10
         self.is_enabled: bool = True
         self.is_crawling: bool = False
+        self._crawling_ids: Set[int] = set()
+        self._crawl_semaphore = asyncio.Semaphore(3)
         self.last_crawl_at: Optional[datetime] = None
         self.last_crawl_status: str = "IDLE"  # "IDLE", "SUCCESS", "ERROR"
         self.last_crawl_count: int = 0
@@ -59,8 +61,8 @@ class GoldCrawlerManager:
         # Cấu hình gửi tin nhắn lịch sử call từ Admin -> Tài khoản nhận
         self.notify_user_id: Optional[str] = None
         self.notify_user_ids: List[str] = []
-        self.notify_mode: str = "ALWAYS"  # "ALWAYS" (Mỗi lần call) | "CHANGE_ONLY" (Chỉ khi giá thay đổi)
-        self.delete_changed_messages: bool = False  # False (Mặc định): Chỉ xóa tin giá không đổi | True: Xóa cả tin giá có thay đổi
+        self.notify_mode: str = "ALWAYS"  # "ALWAYS" | "CHANGE_ONLY"
+        self.delete_changed_messages: bool = False
         self.sender_username: str = "admin"
         self.last_cleanup_date: Optional[str] = None
         self.bot_message_count: int = 0
@@ -138,7 +140,6 @@ class GoldCrawlerManager:
                                 parsed_uids = [str(x).strip() for x in loaded if str(x).strip()]
                         except Exception:
                             parsed_uids = [x.strip() for x in raw_uids.split(",") if x.strip()]
-                    # Khử trùng lặp giữ nguyên thứ tự
                     self.notify_user_ids = list(dict.fromkeys(parsed_uids))
                     self.notify_user_id = self.notify_user_ids[0] if self.notify_user_ids else None
                 elif self.notify_user_id:
@@ -182,7 +183,6 @@ class GoldCrawlerManager:
                     except Exception as e:
                         logger.warning(f"Could not parse crawler_recent_logs: {e}")
 
-                # Nếu chưa có last_crawl_at trong system_settings, lấy mốc mới nhất từ gold_price_history
                 if self.last_crawl_at is None:
                     max_res = await session.execute(select(func.max(GoldPriceHistory.updated_at)))
                     max_dt = max_res.scalar_one_or_none()
@@ -193,10 +193,9 @@ class GoldCrawlerManager:
                         self.last_crawl_status = "SUCCESS"
                         self.last_crawl_message = "Đã đồng bộ từ lịch sử giá vàng gần nhất."
 
-                # Đếm số lượng tin nhắn bot hiện tại
+                await GoldSourceService.ensure_default_sources(session)
                 await self._refresh_bot_message_count(session)
 
-                # Kiểm tra nếu đã qua ngày mới (00:00 VN) trong lúc server tắt thì dọn dẹp ngay
                 today_vn = datetime.now(VN_TZ).strftime("%Y-%m-%d")
                 if self.last_cleanup_date is None:
                     self.last_cleanup_date = today_vn
@@ -205,7 +204,6 @@ class GoldCrawlerManager:
                 elif self.last_cleanup_date != today_vn:
                     await self.cleanup_bot_messages(db=session, new_date_str=today_vn)
 
-            # Tính toán next_crawl_at dựa trên last_crawl_at
             now_utc = datetime.now(timezone.utc)
             if self.is_enabled:
                 if self.last_crawl_at is None:
@@ -336,7 +334,6 @@ class GoldCrawlerManager:
         else:
             self.next_crawl_at = None
 
-        # Đánh thức vòng lặp ngủ để áp dụng cấu hình ngay lập tức
         self._sleep_event.set()
         logger.info(
             f"Crawler settings updated: interval={self.interval_minutes}m, "
@@ -349,17 +346,25 @@ class GoldCrawlerManager:
         source: str,
         status_str: str,
         saved: int,
-        msg: str
+        msg: str,
+        *,
+        source_name: Optional[str] = None,
+        interval_minutes: Optional[int] = None,
+        scraped: Optional[List] = None,
+        changes: Optional[List[Dict]] = None,
     ) -> str:
         """Tạo nội dung tin nhắn báo cáo kết quả quét giá vàng gửi từ Admin."""
         vn_time_str = now_utc.astimezone(VN_TZ).strftime("%H:%M:%S %d/%m/%Y")
-        source_label = "Thủ công" if source == "MANUAL" else f"Tự động ({self.interval_minutes} phút/lần)"
+        eff_interval = interval_minutes or self.interval_minutes
+        source_label = "Thủ công" if source == "MANUAL" else f"Tự động ({eff_interval} phút/lần)"
 
         lines = [
             "🤖 [BOT GIÁ VÀNG - LỊCH SỬ CALL]",
             f"🕒 Thời gian: {vn_time_str}",
-            f"⚙️ Phương thức: {source_label}",
         ]
+        if source_name:
+            lines.append(f"🏪 Cửa hàng: {source_name}")
+        lines.append(f"⚙️ Phương thức: {source_label}")
 
         if status_str != "SUCCESS":
             lines.append(f"❌ Trạng thái: Lỗi kiểm tra giá ({msg})")
@@ -368,14 +373,13 @@ class GoldCrawlerManager:
         else:
             lines.append("✅ Kết quả: Giá vàng không thay đổi so với lần kiểm tra trước.")
 
-        # Đính kèm chi tiết bảng giá vừa kiểm tra
-        scraped = getattr(gold_price_service, "last_scraped", []) or []
-        changes = getattr(gold_price_service, "last_changes", []) or []
-        changes_by_type = {c["gold_type"]: c for c in changes if "gold_type" in c}
+        eff_scraped = scraped if scraped is not None else (getattr(gold_price_service, "last_scraped", []) or [])
+        eff_changes = changes if changes is not None else (getattr(gold_price_service, "last_changes", []) or [])
+        changes_by_type = {c["gold_type"]: c for c in eff_changes if "gold_type" in c}
 
-        if scraped:
+        if eff_scraped:
             lines.append("────────────────────")
-            for dto in scraped:
+            for dto in eff_scraped:
                 chg = changes_by_type.get(dto.gold_type)
                 buy_delta_str = _format_delta(chg.get("buy_delta")) if chg else ""
                 sell_delta_str = _format_delta(chg.get("sell_delta")) if chg else ""
@@ -394,13 +398,13 @@ class GoldCrawlerManager:
         source: str,
         status_str: str,
         saved: int,
-        msg: str
+        msg: str,
+        *,
+        source_name: Optional[str] = None,
+        interval_minutes: Optional[int] = None,
+        scraped: Optional[List] = None,
+        changes: Optional[List[Dict]] = None,
     ) -> bool:
-        """
-        Gửi tin nhắn từ tài khoản admin tới danh sách tài khoản notify_user_ids dựa trên cấu hình:
-        - notify_mode == 'ALWAYS': Gửi mỗi lần bot call để kiểm tra giá vàng
-        - notify_mode == 'CHANGE_ONLY': Chỉ gửi khi giá thay đổi (saved > 0)
-        """
         recipient_ids = list(dict.fromkeys(
             self.notify_user_ids if self.notify_user_ids else ([self.notify_user_id] if self.notify_user_id else [])
         ))
@@ -412,7 +416,6 @@ class GoldCrawlerManager:
             return False
 
         try:
-            # 1. Tìm tài khoản nguồn gửi: admin
             admin_res = await db.execute(select(User).where(User.username == "admin"))
             admin_user = admin_res.scalars().first()
             if not admin_user:
@@ -426,11 +429,20 @@ class GoldCrawlerManager:
                 return False
 
             self.sender_username = admin_user.username
-            content = self._build_notification_content(now_utc, source, status_str, saved, msg)
+            content = self._build_notification_content(
+                now_utc,
+                source,
+                status_str,
+                saved,
+                msg,
+                source_name=source_name,
+                interval_minutes=interval_minutes,
+                scraped=scraped,
+                changes=changes,
+            )
             prefix = BOT_CHANGED_TEMP_ID_PREFIX if saved > 0 else BOT_UNCHANGED_TEMP_ID_PREFIX
             sent_any = False
 
-            # 2. Lặp qua từng tài khoản Quản lý được chọn để gửi tin nhắn báo cáo
             for rid in recipient_ids:
                 target_res = await db.execute(select(User).where(User.id == rid))
                 target_user = target_res.scalars().first()
@@ -462,7 +474,7 @@ class GoldCrawlerManager:
                 sent_any = True
                 logger.info(
                     f"Sent gold crawl notification message from @{admin_user.username} "
-                    f"to @{target_user.username} (mode={self.notify_mode}, saved={saved})."
+                    f"to @{target_user.username} (mode={self.notify_mode}, saved={saved}, store={source_name})."
                 )
 
             if sent_any:
@@ -478,11 +490,6 @@ class GoldCrawlerManager:
         new_date_str: Optional[str] = None,
         delete_changed: Optional[bool] = None
     ) -> int:
-        """
-        Xóa tin nhắn lịch sử call của bot từ admin -> tài khoản nhận:
-        - Mặc định (delete_changed=False): Chỉ xóa tất cả tin nhắn giá vàng KHÔNG thay đổi.
-        - Khi tích chọn (delete_changed=True): Xóa cả tin nhắn giá vàng CÓ thay đổi.
-        """
         deleted_count = 0
         affected_conv_ids: List[str] = []
         member_ids_to_notify: List[str] = []
@@ -503,7 +510,6 @@ class GoldCrawlerManager:
                 else:
                     target_condition = self._unchanged_bot_msg_condition()
 
-                # Tìm các conversation_id có chứa tin nhắn bot cần xóa
                 conv_stmt = (
                     select(Message.conversation_id)
                     .where(target_condition)
@@ -521,7 +527,6 @@ class GoldCrawlerManager:
                     mem_res = await session.execute(mem_stmt)
                     member_ids_to_notify = [u for u in mem_res.scalars().all() if u]
 
-                # Thực hiện xóa tin nhắn thông báo của bot theo chế độ đã chọn
                 del_stmt = delete(Message).where(target_condition)
                 del_res = await session.execute(del_stmt)
                 deleted_count = del_res.rowcount or 0
@@ -537,7 +542,6 @@ class GoldCrawlerManager:
                 f"(delete_changed={should_delete_changed}, cleanup_date={self.last_cleanup_date})."
             )
 
-            # Thông báo qua WebSocket để giao diện Chat xóa các tin nhắn bot ngay lập tức
             if deleted_count > 0 and member_ids_to_notify:
                 await manager.broadcast_to_users(
                     {
@@ -560,10 +564,6 @@ class GoldCrawlerManager:
         db: Optional[AsyncSession] = None,
         now_vn: Optional[datetime] = None
     ) -> int:
-        """
-        Kiểm tra nếu đồng hồ giờ Việt Nam (UTC+7) đã bước sang ngày mới (00:00)
-        thì tự động xóa sạch toàn bộ tin nhắn thông báo của bot.
-        """
         current_vn = now_vn or datetime.now(VN_TZ)
         today_vn_str = current_vn.strftime("%Y-%m-%d")
 
@@ -586,19 +586,46 @@ class GoldCrawlerManager:
 
         return 0
 
+    def _is_source_due(self, src: GoldSource, now_utc: datetime) -> bool:
+        if not src.is_enabled:
+            return False
+        if src.last_scan_at is None:
+            return True
+        last_dt = src.last_scan_at
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+        interval = max(1, src.interval_minutes or self.interval_minutes)
+        return now_utc >= (last_dt + timedelta(minutes=interval))
+
+    def _compute_source_next_due(self, src: GoldSource, now_utc: datetime) -> datetime:
+        if src.last_scan_at is None:
+            return now_utc
+        last_dt = src.last_scan_at
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+        interval = max(1, src.interval_minutes or self.interval_minutes)
+        candidate = last_dt + timedelta(minutes=interval)
+        return candidate if candidate > now_utc else now_utc
+
     async def trigger_crawl(
         self,
         source: str = "MANUAL",
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        source_id: Optional[int] = None,
     ) -> Dict:
-        """Kích hoạt quét giá vàng ngay lập tức (thủ công hoặc tự động) và gửi tin nhắn báo cáo nếu bật."""
-        if self.is_crawling:
+        """
+        Kích hoạt quét giá vàng ngay lập tức cho 1 cửa hàng cụ thể (hoặc cửa hàng mặc định đầu tiên).
+        """
+        lock_key = source_id if source_id is not None else -1
+        if lock_key in self._crawling_ids or (source_id is None and self.is_crawling):
             return {
                 "success": False,
                 "saved": 0,
+                "source_id": source_id,
                 "message": "Quá trình quét giá vàng đang được thực thi. Vui lòng đợi trong giây lát."
             }
 
+        self._crawling_ids.add(lock_key)
         self.is_crawling = True
         start_time = time.time()
         now_utc = datetime.now(timezone.utc)
@@ -606,35 +633,75 @@ class GoldCrawlerManager:
         status_str = "SUCCESS"
         msg = ""
         notified = False
+        resolved_source_id: Optional[int] = source_id
+        resolved_source_name: Optional[str] = None
+        resolved_interval: int = self.interval_minutes
 
         try:
-            # Kiểm tra dọn dẹp 00:00 trước khi quét
             await self.check_and_run_midnight_cleanup(db=db)
 
             async with self._session_scope(db) as session:
-                saved = await gold_price_service.crawl_and_save_changed_prices(session)
-                if saved > 0:
-                    msg = f"Quét thành công! Đã phát hiện và lưu {saved} biến động giá mới."
-                else:
-                    msg = "Quét thành công! Không có thay đổi giá so với lần cập nhật trước."
+                target_src = (
+                    await GoldSourceService.get_source(session, source_id)
+                    if source_id is not None
+                    else await GoldSourceService.get_default_source(session)
+                )
+                if target_src is not None:
+                    resolved_source_id = target_src.id
+                    resolved_source_name = target_src.name
+                    resolved_interval = target_src.interval_minutes or self.interval_minutes
 
-                # Gửi tin nhắn từ Admin -> Tài khoản nhận nếu được cấu hình
+                details = await gold_price_service.crawl_and_save_with_details(
+                    session,
+                    source=target_src,
+                    source_id=resolved_source_id,
+                )
+                saved = details["saved_count"]
+                scraped_list = details.get("scraped", [])
+                changes_list = details.get("changes", [])
+
+                prefix_name = f"[{resolved_source_name}] " if resolved_source_name else ""
+                if saved > 0:
+                    msg = f"{prefix_name}Quét thành công! Đã phát hiện và lưu {saved} biến động giá mới."
+                else:
+                    msg = f"{prefix_name}Quét thành công! Không có thay đổi giá so với lần cập nhật trước."
+
                 notified = await self._send_crawl_notification_if_needed(
-                    session, now_utc, source, status_str, saved, msg
+                    session,
+                    now_utc,
+                    source,
+                    status_str,
+                    saved,
+                    msg,
+                    source_name=resolved_source_name,
+                    interval_minutes=resolved_interval,
+                    scraped=scraped_list,
+                    changes=changes_list,
                 )
         except Exception as e:
             status_str = "ERROR"
-            msg = f"Lỗi quét giá vàng: {str(e)}"
-            logger.error(f"Error during crawl ({source}): {e}", exc_info=True)
+            prefix_name = f"[{resolved_source_name}] " if resolved_source_name else ""
+            msg = f"{prefix_name}Lỗi quét giá vàng: {str(e)}"
+            logger.error(f"Error during crawl ({source}, source_id={resolved_source_id}): {e}", exc_info=True)
             try:
                 async with self._session_scope(db) as session:
                     notified = await self._send_crawl_notification_if_needed(
-                        session, now_utc, source, status_str, 0, msg
+                        session,
+                        now_utc,
+                        source,
+                        status_str,
+                        0,
+                        msg,
+                        source_name=resolved_source_name,
+                        interval_minutes=resolved_interval,
+                        scraped=[],
+                        changes=[],
                     )
             except Exception:
                 pass
         finally:
-            self.is_crawling = False
+            self._crawling_ids.discard(lock_key)
+            self.is_crawling = len(self._crawling_ids) > 0
             duration_ms = int((time.time() - start_time) * 1000)
 
             self.last_crawl_at = now_utc
@@ -643,7 +710,7 @@ class GoldCrawlerManager:
             self.last_crawl_message = msg
 
             if self.is_enabled:
-                self.next_crawl_at = now_utc + timedelta(minutes=self.interval_minutes)
+                self.next_crawl_at = now_utc + timedelta(minutes=resolved_interval)
             else:
                 self.next_crawl_at = None
 
@@ -651,6 +718,8 @@ class GoldCrawlerManager:
                 "id": str(uuid.uuid4())[:8],
                 "timestamp": now_utc.isoformat(),
                 "source": "Thủ công" if source == "MANUAL" else "Tự động",
+                "source_id": resolved_source_id,
+                "source_name": resolved_source_name,
                 "status": status_str,
                 "saved_count": saved,
                 "message": msg,
@@ -669,13 +738,63 @@ class GoldCrawlerManager:
         return {
             "success": status_str == "SUCCESS",
             "saved": saved,
+            "source_id": resolved_source_id,
+            "source_name": resolved_source_name,
             "notified": notified,
             "message": msg,
             "duration_ms": duration_ms
         }
 
+    async def crawl_due_sources(self, db: Optional[AsyncSession] = None) -> List[Dict]:
+        """
+        Kiểm tra toàn bộ các cửa hàng đang bật (is_enabled=True),
+        chỉ quét những cửa hàng đã tới hạn (last_scan_at + interval_minutes <= now)
+        với giới hạn tối đa 3 cửa hàng chạy song song.
+        """
+        if not self.is_enabled:
+            self.next_crawl_at = None
+            return []
+
+        now_utc = datetime.now(timezone.utc)
+        async with self._session_scope(db) as session:
+            enabled_sources = await GoldSourceService.list_sources(session, enabled_only=True)
+
+        if not enabled_sources:
+            self.next_crawl_at = now_utc + timedelta(minutes=self.interval_minutes)
+            return []
+
+        due_sources = [
+            s for s in enabled_sources
+            if self._is_source_due(s, now_utc) and s.id not in self._crawling_ids
+        ]
+
+        results: List[Dict] = []
+
+        async def _scan_guarded(sid: int):
+            async with self._crawl_semaphore:
+                return await self.trigger_crawl(source="SCHEDULED", db=db, source_id=sid)
+
+        if due_sources:
+            if db is not None:
+                # Khi chạy trong cùng 1 AsyncSession truyền vào (như trong test), chạy tuần tự trên session đó
+                for s in due_sources:
+                    res = await self.trigger_crawl(source="SCHEDULED", db=db, source_id=s.id)
+                    results.append(res)
+            else:
+                results = list(await asyncio.gather(*(_scan_guarded(s.id) for s in due_sources)))
+
+        # Tính thời điểm quét tiếp theo sớm nhất trong tất cả cửa hàng đang bật
+        now_after = datetime.now(timezone.utc)
+        async with self._session_scope(db) as session:
+            refreshed = await GoldSourceService.list_sources(session, enabled_only=True)
+        if refreshed:
+            self.next_crawl_at = min(self._compute_source_next_due(s, now_after) for s in refreshed)
+        else:
+            self.next_crawl_at = now_after + timedelta(minutes=self.interval_minutes)
+
+        return results
+
     async def _maybe_send_keepalive_ping(self):
-        """Gửi HTTP GET tới public health endpoint mỗi 4 phút để giữ Cloud container không bị ngủ đông."""
         if not self.is_enabled or not self.public_base_url:
             return
         now_mono = time.monotonic()
@@ -691,10 +810,6 @@ class GoldCrawlerManager:
             logger.debug(f"Keep-alive self-ping skipped/failed: {e}")
 
     def ensure_scheduler_alive(self):
-        """
-        Đảm bảo background loop luôn sống và tự động đánh thức nếu đã quá hạn quét
-        (hữu ích khi container vừa thức dậy sau cold-start).
-        """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -710,16 +825,13 @@ class GoldCrawlerManager:
                 self._sleep_event.set()
 
     async def run_loop(self):
-        """Vòng lặp chạy crawler nền dựa trên chu kỳ đã cấu hình và tự động xóa tin nhắn bot lúc 00:00."""
+        """Vòng lặp chạy crawler nền dựa trên chu kỳ riêng của từng cửa hàng và dọn tin nhắn bot lúc 00:00."""
         logger.info("Gold crawler scheduler loop started.")
-        await asyncio.sleep(2)  # Chờ khởi động server ổn định
+        await asyncio.sleep(2)
 
         while True:
             try:
-                # 1. Kiểm tra mốc 00:00 (giờ Việt Nam UTC+7) để xóa tin nhắn bot
                 await self.check_and_run_midnight_cleanup()
-
-                # 2. Gửi Keep-Alive ping định kỳ nếu có public URL
                 await self._maybe_send_keepalive_ping()
 
                 if not self.is_enabled:
@@ -733,23 +845,12 @@ class GoldCrawlerManager:
                     continue
 
                 now_utc = datetime.now(timezone.utc)
+                if self.next_crawl_at is None or now_utc >= self.next_crawl_at:
+                    await self.crawl_due_sources()
+                    now_utc = datetime.now(timezone.utc)
 
-                # 3. Xác định thời điểm quét tiếp theo dựa trên last_crawl_at thực tế
-                if self.next_crawl_at is None:
-                    if self.last_crawl_at is None:
-                        self.next_crawl_at = now_utc
-                    else:
-                        candidate = self.last_crawl_at + timedelta(minutes=self.interval_minutes)
-                        self.next_crawl_at = candidate if candidate > now_utc else now_utc
-
-                # 4. Nếu đã tới hạn (hoặc quá hạn khi vừa khởi động) -> Quét ngay lập tức!
-                if now_utc >= self.next_crawl_at:
-                    logger.info(f"=== [Gold Scheduler] Starting scheduled crawl (every {self.interval_minutes}m) ===")
-                    await self.trigger_crawl(source="SCHEDULED")
-                    continue
-
-                # 5. Ngủ theo nhịp ngắn (tối đa 15s) để phản hồi tức thì khi sang 00:00 hoặc đổi cấu hình
-                remaining_seconds = max(1.0, (self.next_crawl_at - now_utc).total_seconds())
+                next_due = self.next_crawl_at or (now_utc + timedelta(seconds=15))
+                remaining_seconds = max(1.0, (next_due - now_utc).total_seconds())
                 sleep_chunk = min(15.0, remaining_seconds)
 
                 self._sleep_event.clear()
@@ -768,7 +869,6 @@ class GoldCrawlerManager:
                 await asyncio.sleep(10)
 
     def get_status(self) -> Dict:
-        """Trả về toàn bộ trạng thái và cấu hình hiện tại của crawler."""
         return {
             "interval_minutes": self.interval_minutes,
             "is_enabled": self.is_enabled,
@@ -791,5 +891,4 @@ class GoldCrawlerManager:
         }
 
 
-# Singleton instance
 crawler_manager = GoldCrawlerManager()

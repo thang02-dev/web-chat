@@ -13,9 +13,9 @@
           <span>{{ authStore.isAuthenticated ? 'Quay lại Chat' : 'Đăng Nhập' }}</span>
         </button>
 
-        <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-          <span class="brand-icon">✦</span>
-          <span class="brand-text">Gold Price Tracker</span>
+        <a class="navbar-brand d-flex align-items-center gap-2" href="#" @click.prevent>
+          <i class="bi bi-graph-up brand-icon"></i>
+          <span class="brand-text">{{ activeStore?.name || 'Bảng giá vàng' }}</span>
         </a>
       </div>
 
@@ -32,7 +32,7 @@
 
         <span class="nav-badge d-none-mobile">
           <i class="bi bi-clock-fill me-1"></i>
-          {{ isCrawlerEnabled ? `${intervalMinutes} phút / lần` : 'Đã tạm dừng' }}
+          {{ isCrawlerEnabled ? `${displayIntervalMinutes} phút / lần` : 'Đã tạm dừng' }}
         </span>
 
         <!-- Manual Crawl Button -->
@@ -56,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
@@ -64,37 +64,53 @@ import api from '@/services/api'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const intervalMinutes = ref(10)
-const isCrawlerEnabled = ref(true)
-
-async function fetchCrawlerConfig() {
-  try {
-    const res = await api.get('/prices/config')
-    if (res.data) {
-      intervalMinutes.value = res.data.interval_minutes || 10
-      isCrawlerEnabled.value = res.data.is_enabled !== false
-    }
-  } catch (e) {
-    // keep default
-  }
-}
-
-onMounted(() => {
-  fetchCrawlerConfig()
-})
-
 const props = defineProps({
   sseStatus: {
     type: String,
-    default: 'connecting' // 'connected', 'connecting', 'disconnected'
+    default: 'connecting'
   },
   isCrawling: {
     type: Boolean,
     default: false
+  },
+  activeStore: {
+    type: Object,
+    default: null
   }
 })
 
 defineEmits(['trigger-crawl'])
+
+const intervalMinutes = ref(10)
+const isCrawlerEnabled = ref(true)
+
+const displayIntervalMinutes = computed(() => {
+  return props.activeStore?.interval_minutes || intervalMinutes.value
+})
+
+async function fetchCrawlerConfig() {
+  try {
+    const params = props.activeStore?.id ? { source_id: props.activeStore.id } : {}
+    const res = await api.get('/prices/config', { params })
+    if (res.data) {
+      intervalMinutes.value = res.data.interval_minutes || 10
+      isCrawlerEnabled.value = res.data.is_enabled !== false
+    }
+  } catch {
+    // keep default
+  }
+}
+
+watch(
+  () => props.activeStore?.id,
+  () => {
+    fetchCrawlerConfig()
+  }
+)
+
+onMounted(() => {
+  fetchCrawlerConfig()
+})
 
 function handleGoBack() {
   if (authStore.isAuthenticated) {
@@ -122,4 +138,3 @@ const sseDotColor = computed(() => {
   return 'var(--text-muted)'
 })
 </script>
-

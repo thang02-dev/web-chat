@@ -7,12 +7,14 @@
         <div class="partner-meta" @click="chatStore.isInfoDrawerOpen = !chatStore.isInfoDrawerOpen">
           <!-- Back button on mobile to return to conversations list -->
           <button v-if="isMobile" class="back-btn" title="Quay lại" @click.stop="$emit('back')">
-            ‹
+            <i class="bi bi-chevron-left"></i>
           </button>
 
           <div class="avatar">
             <img :src="headerAvatar" alt="Avatar" />
-            <span v-if="conversation?.type === 'GROUP'" class="group-header-badge">👥</span>
+            <span v-if="conversation?.type === 'GROUP'" class="group-header-badge">
+              <i class="bi bi-people-fill"></i>
+            </span>
             <span
               v-else
               :class="['status-dot', partner?.is_online ? 'online' : 'offline']"
@@ -28,13 +30,13 @@
             </div>
 
             <span v-if="isPartnerTyping" class="partner-status typing-active">
-              ✍️ Đang soạn tin...
+              Đang soạn tin...
             </span>
             <span v-else-if="conversation?.type === 'GROUP'" class="partner-status">
-              {{ conversation.members?.length || 0 }} thành viên • {{ onlineMembersCount }} trực tuyến
+              {{ conversation.members?.length || 0 }} thành viên · {{ onlineMembersCount }} trực tuyến
             </span>
             <span v-else class="partner-status">
-              {{ partner?.is_online ? '🟢 Đang hoạt động' : (partner?.last_seen ? 'Hoạt động ' + formatLastSeen(partner.last_seen) : 'Ngoại tuyến') }}
+              {{ partner?.is_online ? 'Đang hoạt động' : (partner?.last_seen ? 'Hoạt động ' + formatLastSeen(partner.last_seen) : 'Ngoại tuyến') }}
             </span>
           </div>
         </div>
@@ -45,7 +47,7 @@
             title="Tìm kiếm tin nhắn trong cuộc trò chuyện"
             @click="toggleSearchBar"
           >
-            🔍
+            <i class="bi bi-search"></i>
           </button>
 
           <button
@@ -54,23 +56,24 @@
             title="Xem các tin nhắn đã ghim"
             @click="chatStore.isInfoDrawerOpen = true"
           >
-            📌 <span>{{ pinnedMessages.length }}</span>
+            <i class="bi bi-pin-angle-fill"></i>
+            <span>{{ pinnedMessages.length }}</span>
           </button>
 
           <button
-            class="btn push-btn"
+            :class="['header-icon-btn push-btn', { active: socketStore.pushEnabled }]"
             :title="socketStore.pushEnabled ? 'Thông báo trình duyệt đang bật' : 'Bật thông báo trình duyệt'"
             @click="togglePush"
           >
-            {{ socketStore.pushEnabled ? '🔔 Push' : '🔕 Push' }}
+            <i :class="socketStore.pushEnabled ? 'bi bi-bell-fill' : 'bi bi-bell-slash'"></i>
           </button>
 
           <button
             :class="['header-icon-btn', { active: chatStore.isInfoDrawerOpen }]"
-            title="Thông tin & Tùy chỉnh cuộc trò chuyện"
+            title="Thông tin cuộc trò chuyện"
             @click="chatStore.isInfoDrawerOpen = !chatStore.isInfoDrawerOpen"
           >
-            ℹ️
+            <i class="bi bi-layout-sidebar-inset-reverse"></i>
           </button>
         </div>
       </header>
@@ -78,19 +81,21 @@
       <!-- Collapsible In-Chat Search Bar -->
       <div v-if="isSearchBarOpen" class="in-chat-search-bar">
         <div class="search-bar-inner">
-          <span>🔍</span>
+          <i class="bi bi-search search-inner-icon"></i>
           <input
             ref="inChatSearchInput"
             v-model="inChatSearchQuery"
             type="text"
             class="in-chat-search-input"
-            placeholder="Nhập từ khóa để tìm tin nhắn trong cuộc trò chuyện..."
+            placeholder="Tìm tin nhắn trong cuộc trò chuyện..."
             @input="handleInChatSearch"
           />
           <span v-if="searchResults.length > 0" class="search-count-tag">
             {{ searchResults.length }} kết quả
           </span>
-          <button class="close-subbar-btn" @click="closeSearchBar">✕</button>
+          <button class="close-subbar-btn" title="Đóng tìm kiếm" @click="closeSearchBar">
+            <i class="bi bi-x-lg"></i>
+          </button>
         </div>
 
         <div v-if="searchResults.length > 0" class="search-results-strip">
@@ -105,10 +110,10 @@
         </div>
       </div>
 
-      <!-- Sticky Pinned Message Banner (Telegram / Messenger Style) -->
+      <!-- Sticky Pinned Message Banner -->
       <div v-if="latestPinnedMessage" class="pinned-banner">
         <div class="pinned-banner-left" @click="scrollToMessage(latestPinnedMessage.id)">
-          <span class="pin-banner-icon">📌</span>
+          <i class="bi bi-pin-angle-fill pin-banner-icon"></i>
           <div class="pinned-banner-meta">
             <div class="pinned-banner-label">
               Tin nhắn đã ghim ({{ pinnedMessages.length }})
@@ -128,7 +133,7 @@
             title="Bỏ ghim tin nhắn này"
             @click="chatStore.togglePinMessage(latestPinnedMessage.id)"
           >
-            ✕
+            <i class="bi bi-x-lg"></i>
           </button>
         </div>
       </div>
@@ -139,25 +144,25 @@
         <div v-if="chatStore.hasMore[conversation?.id]" class="load-more-wrapper">
           <button class="load-more-btn" :disabled="loadingOlder" @click="loadOlderMessages">
             <span v-if="loadingOlder">Đang tải tin nhắn cũ...</span>
-            <span v-else>↑ Tải thêm tin nhắn cũ</span>
+            <span v-else>Tải thêm tin nhắn cũ</span>
           </button>
         </div>
 
-        <!-- Conversation Theme Intro Card at the top -->
+        <!-- Conversation Intro Header at the top -->
         <div v-if="!chatStore.hasMore[conversation?.id]" class="chat-intro-hero">
           <img :src="headerAvatar" alt="Avatar" class="intro-avatar" />
           <h3>{{ conversation?.name || partner?.full_name || 'Cuộc trò chuyện' }}</h3>
           <p v-if="conversation?.type === 'GROUP'">
-            Nhóm trò chuyện gồm {{ conversation.members?.length || 0 }} thành viên • Chủ đề {{ currentThemeObj.name }}
+            Nhóm gồm {{ conversation.members?.length || 0 }} thành viên
           </p>
           <p v-else>
-            Các bạn đã được kết nối trên Messenger Web Chat • Chủ đề {{ currentThemeObj.name }}
+            Bắt đầu cuộc trò chuyện với {{ partner?.full_name || 'bạn bè' }}
           </p>
         </div>
 
         <!-- Message History with Date Dividers & Smart Grouping -->
         <div class="message-feed">
-          <template v-for="(item, idx) in enrichedMessages" :key="item.msg.id">
+          <template v-for="item in enrichedMessages" :key="item.msg.id">
             <!-- Date Separator -->
             <div v-if="item.showDateDivider" class="date-divider">
               <span>{{ item.dateLabel }}</span>
@@ -196,7 +201,8 @@
         title="Cuộn xuống tin nhắn mới nhất"
         @click="scrollToBottom"
       >
-        ↓ Cuộn xuống cuối
+        <i class="bi bi-arrow-down"></i>
+        <span>Tin mới nhất</span>
       </button>
 
       <!-- Rich Message Input Bar -->
@@ -205,11 +211,14 @@
         <div v-if="chatStore.replyingToMessage" class="composer-banner reply-banner">
           <div class="banner-info">
             <span class="banner-title">
-              ↩ Đang trả lời <b>{{ chatStore.replyingToMessage.sender?.full_name || 'tin nhắn' }}</b>
+              <i class="bi bi-reply"></i>
+              <span>Đang trả lời <b>{{ chatStore.replyingToMessage.sender?.full_name || 'tin nhắn' }}</b></span>
             </span>
             <span class="banner-snippet">{{ chatStore.replyingToMessage.content }}</span>
           </div>
-          <button class="banner-close" @click="chatStore.clearReplyTo">✕</button>
+          <button class="banner-close" title="Hủy trả lời" @click="chatStore.clearReplyTo">
+            <i class="bi bi-x-lg"></i>
+          </button>
         </div>
 
         <!-- Pending Image Attachment Preview Banner -->
@@ -218,7 +227,9 @@
             <img :src="pendingAttachmentUrl" alt="Preview" class="pending-thumb" />
             <span class="banner-snippet">Hình ảnh đính kèm sẵn sàng gửi</span>
           </div>
-          <button class="banner-close" @click="pendingAttachmentUrl = ''">✕</button>
+          <button class="banner-close" title="Bỏ hình đính kèm" @click="pendingAttachmentUrl = ''">
+            <i class="bi bi-x-lg"></i>
+          </button>
         </div>
 
         <!-- Emoji & Sticker Popover -->
@@ -229,23 +240,28 @@
               :class="['pop-tab', { active: pickerTab === 'emoji' }]"
               @click="pickerTab = 'emoji'"
             >
-              😊 Emoji
+              <i class="bi bi-emoji-smile"></i>
+              <span>Emoji</span>
             </button>
             <button
               type="button"
               :class="['pop-tab', { active: pickerTab === 'sticker' }]"
               @click="pickerTab = 'sticker'"
             >
-              ✨ Nhãn dán
+              <i class="bi bi-sticky"></i>
+              <span>Nhãn dán</span>
             </button>
             <button
               type="button"
               :class="['pop-tab', { active: pickerTab === 'image_url' }]"
               @click="pickerTab = 'image_url'"
             >
-              🔗 Link Ảnh
+              <i class="bi bi-link-45deg"></i>
+              <span>Link ảnh</span>
             </button>
-            <button type="button" class="pop-close" @click="showEmojiPicker = false">✕</button>
+            <button type="button" class="pop-close" title="Đóng" @click="showEmojiPicker = false">
+              <i class="bi bi-x-lg"></i>
+            </button>
           </div>
 
           <!-- Tab 1: Emojis -->
@@ -255,6 +271,7 @@
               :key="emo"
               type="button"
               class="emoji-cell"
+              data-emoji-content="true"
               @click="insertEmoji(emo)"
             >
               {{ emo }}
@@ -268,6 +285,7 @@
               :key="st.label"
               type="button"
               class="sticker-cell"
+              data-emoji-content="true"
               :title="st.label"
               @click="sendSticker(st.art)"
             >
@@ -278,7 +296,7 @@
 
           <!-- Tab 3: Image URL -->
           <div v-else class="image-url-tab">
-            <p class="url-hint">Dán đường dẫn ảnh (URL) để gửi trực tiếp vào cuộc trò chuyện:</p>
+            <p class="url-hint">Dán đường dẫn ảnh (URL) để gửi vào cuộc trò chuyện:</p>
             <div class="url-input-row">
               <input
                 v-model="customImageUrlInput"
@@ -311,15 +329,15 @@
               title="Đính kèm hình ảnh"
               @click="triggerImageUpload"
             >
-              🖼️
+              <i class="bi bi-image"></i>
             </button>
             <button
               type="button"
               :class="['composer-tool-btn', { active: showEmojiPicker }]"
-              title="Chọn Emoji hoặc Nhãn dán (Sticker)"
+              title="Chọn Emoji hoặc Nhãn dán"
               @click="showEmojiPicker = !showEmojiPicker"
             >
-              😊
+              <i class="bi bi-emoji-smile"></i>
             </button>
           </div>
 
@@ -328,7 +346,7 @@
             v-model="inputContent"
             type="text"
             class="chat-input"
-            :placeholder="chatStore.replyingToMessage ? 'Nhập nội dung trả lời...' : 'Nhập tin nhắn, @mention hoặc dán ảnh...'"
+            :placeholder="chatStore.replyingToMessage ? 'Nhập nội dung trả lời...' : 'Nhập tin nhắn hoặc dán ảnh...'"
             @focus="handleInputFocus"
             @blur="handleInputBlur"
             @paste="handlePaste"
@@ -336,20 +354,21 @@
             @keydown.esc="handleEscape"
           />
 
-          <!-- Dynamic Send Button OR Messenger Quick Emoji Button -->
+          <!-- Dynamic Send Button OR Quick Emoji Button -->
           <button
             v-if="inputContent.trim() || pendingAttachmentUrl"
             type="submit"
             class="btn btn-primary send-btn"
           >
+            <i class="bi bi-send-fill"></i>
             <span class="send-btn-text">Gửi</span>
-            <span class="send-btn-icon">➤</span>
           </button>
 
           <button
             v-else
             type="button"
             class="quick-emoji-btn"
+            data-emoji-content="true"
             :title="`Gửi nhanh ${conversation?.quick_emoji || '👍'}`"
             @click="sendQuickReaction"
           >
@@ -363,7 +382,9 @@
     <aside v-if="chatStore.isInfoDrawerOpen" class="chat-info-drawer">
       <div class="drawer-header">
         <h3>Thông tin hội thoại</h3>
-        <button class="close-drawer-btn" @click="chatStore.isInfoDrawerOpen = false">✕</button>
+        <button class="close-drawer-btn" title="Đóng" @click="chatStore.isInfoDrawerOpen = false">
+          <i class="bi bi-x-lg"></i>
+        </button>
       </div>
 
       <div class="drawer-body">
@@ -372,16 +393,16 @@
           <img :src="headerAvatar" alt="Avatar" class="drawer-avatar" />
           <h4 class="drawer-title">{{ conversation?.name || partner?.full_name }}</h4>
           <span v-if="conversation?.type === 'DIRECT' && partner" class="drawer-sub">
-            @{{ partner.username }} • {{ partner.is_online ? '🟢 Đang online' : 'Ngoại tuyến' }}
+            @{{ partner.username }} · {{ partner.is_online ? 'Đang online' : 'Ngoại tuyến' }}
           </span>
           <span v-else class="drawer-sub">
-            Nhóm trò chuyện • {{ conversation?.members?.length || 0 }} thành viên
+            Nhóm trò chuyện · {{ conversation?.members?.length || 0 }} thành viên
           </span>
         </div>
 
         <!-- Theme Customization Section -->
         <div class="drawer-section">
-          <div class="drawer-section-title">🎨 Chủ đề cuộc trò chuyện</div>
+          <div class="drawer-section-title">Chủ đề cuộc trò chuyện</div>
           <div class="theme-grid">
             <button
               v-for="t in CHAT_THEMES"
@@ -389,7 +410,7 @@
               :class="['theme-swatch-btn', { selected: (conversation?.theme || 'ocean') === t.id }]"
               @click="selectTheme(t.id)"
             >
-              <span class="swatch-circle" :style="{ background: t.gradient }"></span>
+              <span class="swatch-circle" :style="{ backgroundColor: t.color }"></span>
               <span class="swatch-name">{{ t.name }}</span>
             </button>
           </div>
@@ -397,11 +418,12 @@
 
         <!-- Quick Reaction Emoji Section -->
         <div class="drawer-section">
-          <div class="drawer-section-title">⚡ Biểu tượng cảm xúc nhanh</div>
+          <div class="drawer-section-title">Biểu tượng cảm xúc nhanh</div>
           <div class="quick-emoji-selector">
             <button
               v-for="qe in QUICK_EMOJIS"
               :key="qe"
+              data-emoji-content="true"
               :class="['qe-option-btn', { selected: (conversation?.quick_emoji || '👍') === qe }]"
               @click="selectQuickEmoji(qe)"
             >
@@ -413,7 +435,7 @@
         <!-- Group Members Section -->
         <div v-if="conversation?.type === 'GROUP'" class="drawer-section">
           <div class="drawer-section-title">
-            👥 Thành viên nhóm ({{ conversation.members?.length || 0 }})
+            Thành viên nhóm ({{ conversation.members?.length || 0 }})
           </div>
           <div class="drawer-member-list">
             <div v-for="m in conversation.members" :key="m.id" class="drawer-member-item">
@@ -423,7 +445,7 @@
               </div>
               <div class="drawer-member-meta">
                 <div class="m-name">{{ m.user?.full_name || 'Thành viên' }}</div>
-                <div class="m-role">{{ m.role === 'ADMIN' ? '👑 Trưởng nhóm' : 'Thành viên' }}</div>
+                <div class="m-role">{{ m.role === 'ADMIN' ? 'Trưởng nhóm' : 'Thành viên' }}</div>
               </div>
             </div>
           </div>
@@ -432,7 +454,7 @@
         <!-- Pinned Messages List -->
         <div class="drawer-section">
           <div class="drawer-section-title">
-            📌 Tin nhắn đã ghim ({{ pinnedMessages.length }})
+            Tin nhắn đã ghim ({{ pinnedMessages.length }})
           </div>
           <div v-if="pinnedMessages.length === 0" class="drawer-empty">
             Chưa có tin nhắn nào được ghim.
@@ -451,7 +473,7 @@
                   title="Bỏ ghim"
                   @click.stop="chatStore.togglePinMessage(pm.id)"
                 >
-                  ✕
+                  <i class="bi bi-x"></i>
                 </button>
               </div>
               <div class="pm-content">{{ pm.content }}</div>
@@ -462,7 +484,7 @@
         <!-- Shared Images Gallery -->
         <div class="drawer-section">
           <div class="drawer-section-title">
-            🖼️ Ảnh đã chia sẻ ({{ sharedImages.length }})
+            Ảnh đã chia sẻ ({{ sharedImages.length }})
           </div>
           <div v-if="sharedImages.length === 0" class="drawer-empty">
             Chưa có hình ảnh nào trong cuộc trò chuyện.
@@ -485,7 +507,10 @@
     <div v-if="lightboxImageUrl" class="lightbox-backdrop" @click="lightboxImageUrl = ''">
       <div class="lightbox-content" @click.stop>
         <img :src="lightboxImageUrl" alt="Full Preview" class="lightbox-img" />
-        <button class="lightbox-close" @click="lightboxImageUrl = ''">✕ Đóng</button>
+        <button class="lightbox-close" @click="lightboxImageUrl = ''">
+          <i class="bi bi-x-lg"></i>
+          <span>Đóng</span>
+        </button>
       </div>
     </div>
   </div>
@@ -599,7 +624,7 @@ const sharedImages = computed(() => {
   return chatStore.currentMessages.filter(m => m.attachment_url && !m.is_recalled)
 })
 
-// Enrich messages with Date Dividers & Smart Grouping (Messenger style)
+// Enrich messages with Date Dividers & Smart Grouping
 const enrichedMessages = computed(() => {
   const list = chatStore.currentMessages
   const result = []
@@ -615,7 +640,6 @@ const enrichedMessages = computed(() => {
     const showDateDivider = dateKey !== lastDateStr
     lastDateStr = dateKey
 
-    // Group with previous message if same sender, within 3 minutes, and not separated by date divider or system msg
     let isGroupedWithPrev = false
     if (
       !showDateDivider &&
@@ -630,7 +654,6 @@ const enrichedMessages = computed(() => {
       }
     }
 
-    // Show avatar on the last message of a consecutive burst
     let showAvatar = true
     if (
       next &&
@@ -996,8 +1019,7 @@ function handleInputBlur() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-chat);
-  background-image: var(--bg-chat-pattern);
+  background-color: var(--bg-app);
   height: 100%;
   max-height: 100%;
   min-height: 0;
@@ -1007,11 +1029,11 @@ function handleInputBlur() {
 }
 
 .chat-header {
-  padding: 0.75rem 1.25rem;
-  padding-top: max(0.75rem, env(safe-area-inset-top));
-  background: rgba(30, 41, 59, 0.92);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-color);
+  padding: 0.65rem 1.15rem;
+  padding-top: max(0.65rem, env(safe-area-inset-top));
+  background-color: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -2px 0 var(--accent);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1022,7 +1044,7 @@ function handleInputBlur() {
 .partner-meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.7rem;
   min-width: 0;
   cursor: pointer;
 }
@@ -1031,26 +1053,28 @@ function handleInputBlur() {
   background: none;
   border: none;
   color: var(--text-main);
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 1.15rem;
   cursor: pointer;
-  padding: 0 0.4rem 0 0;
+  padding: 0.25rem 0.4rem 0.25rem 0;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 .group-header-badge {
   position: absolute;
   bottom: -2px;
   right: -2px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 0.6rem;
-  width: 16px;
-  height: 16px;
+  background-color: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.55rem;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1.5px solid var(--bg-sidebar);
 }
 
 .partner-info {
@@ -1066,8 +1090,8 @@ function handleInputBlur() {
 }
 
 .partner-name {
-  font-size: 0.98rem;
-  font-weight: 700;
+  font-size: 0.9375rem;
+  font-weight: 600;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
@@ -1087,47 +1111,44 @@ function handleInputBlur() {
 }
 
 .typing-active {
-  color: #38bdf8;
-  font-weight: 600;
+  color: var(--accent);
+  font-weight: 500;
 }
 
 .header-tools {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .header-icon-btn {
-  background: #334155;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #e2e8f0;
-  padding: 0.35rem 0.6rem;
-  border-radius: 0.5rem;
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 0.375rem 0.55rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  transition: all 0.15s;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-.header-icon-btn:hover,
+.header-icon-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
+}
 .header-icon-btn.active {
-  background: var(--primary);
-  color: #fff;
-}
-
-.push-btn {
-  font-size: 0.75rem;
-  padding: 0.375rem 0.65rem;
-  background: #334155;
-  color: #e2e8f0;
+  background-color: var(--accent-soft);
+  border-color: var(--border);
+  color: var(--accent);
 }
 
 /* In-chat Search Bar */
 .in-chat-search-bar {
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
-  padding: 0.5rem 1.25rem;
+  background-color: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 1.15rem;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -1138,10 +1159,15 @@ function handleInputBlur() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 0.5rem;
-  padding: 0.35rem 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+}
+
+.search-inner-icon {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
 .in-chat-search-input {
@@ -1149,37 +1175,43 @@ function handleInputBlur() {
   background: transparent;
   border: none;
   outline: none;
-  color: #f8fafc;
-  font-size: 0.85rem;
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+}
+.in-chat-search-input::placeholder {
+  color: var(--text-muted);
 }
 
 .search-count-tag {
-  font-size: 0.72rem;
-  color: #38bdf8;
-  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--highlight);
+  font-weight: 500;
 }
 
 .close-subbar-btn {
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
+  font-size: 0.8rem;
 }
 
 .search-results-strip {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.35rem;
   overflow-x: auto;
   padding-bottom: 0.15rem;
 }
 
 .search-hit-chip {
-  background: #0f172a;
-  border: 1px solid #334155;
-  color: #cbd5e1;
-  font-size: 0.72rem;
-  padding: 0.25rem 0.55rem;
-  border-radius: 9999px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
   max-width: 220px;
   overflow: hidden;
@@ -1187,15 +1219,16 @@ function handleInputBlur() {
   cursor: pointer;
 }
 .search-hit-chip:hover {
-  border-color: var(--primary);
-  color: #fff;
+  border-color: var(--accent);
+  background-color: var(--bg-hover);
 }
 
 /* Pinned Message Banner */
 .pinned-banner {
-  background: rgba(30, 41, 59, 0.95);
-  border-bottom: 1px solid rgba(251, 191, 36, 0.3);
-  padding: 0.45rem 1.25rem;
+  background-color: var(--bg-hover);
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  padding: 0.4rem 1.15rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1206,10 +1239,15 @@ function handleInputBlur() {
 .pinned-banner-left {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   min-width: 0;
   cursor: pointer;
   flex: 1;
+}
+
+.pin-banner-icon {
+  color: var(--highlight);
+  font-size: 0.875rem;
 }
 
 .pinned-banner-meta {
@@ -1217,14 +1255,14 @@ function handleInputBlur() {
 }
 
 .pinned-banner-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #fbbf24;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--highlight);
 }
 
 .pinned-banner-text {
   font-size: 0.78rem;
-  color: #e2e8f0;
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1237,21 +1275,25 @@ function handleInputBlur() {
 }
 
 .pin-action-link {
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  color: #fde68a;
-  font-size: 0.7rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: 0.375rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+}
+.pin-action-link:hover {
+  border-color: var(--accent);
 }
 
 .pin-unpin-btn {
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 /* Messages Container */
@@ -1259,7 +1301,7 @@ function handleInputBlur() {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 1.25rem 1.5rem;
+  padding: 1.15rem 1.35rem;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1270,23 +1312,24 @@ function handleInputBlur() {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 1.5rem 1rem 2rem;
+  padding: 1.25rem 1rem 1.75rem;
   color: var(--text-muted);
 }
 
 .intro-avatar {
-  width: 68px;
-  height: 68px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid var(--primary);
-  margin-bottom: 0.65rem;
+  border: 1px solid var(--border);
+  margin-bottom: 0.5rem;
 }
 
 .chat-intro-hero h3 {
   color: var(--text-main);
-  font-size: 1.05rem;
-  margin-bottom: 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
 }
 
 .chat-intro-hero p {
@@ -1296,33 +1339,38 @@ function handleInputBlur() {
 .date-divider {
   display: flex;
   justify-content: center;
-  margin: 0.85rem 0;
+  margin: 0.75rem 0;
 }
 
 .date-divider span {
-  background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(51, 65, 85, 0.6);
-  color: #94a3b8;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.2rem 0.75rem;
-  border-radius: 9999px;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.15rem 0.65rem;
+  border-radius: var(--radius-sm);
 }
 
 .load-more-wrapper {
   display: flex;
   justify-content: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.875rem;
 }
 
 .load-more-btn {
-  background: #1e293b;
-  border: 1px solid var(--border-color);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
   color: var(--text-muted);
+  font-family: var(--font-ui);
   font-size: 0.75rem;
-  padding: 0.375rem 0.875rem;
-  border-radius: 9999px;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+}
+.load-more-btn:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
 }
 
 .message-feed {
@@ -1333,56 +1381,62 @@ function handleInputBlur() {
 .typing-indicator {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.875rem;
-  color: #38bdf8;
-  font-size: 0.8125rem;
-  font-style: italic;
-  margin-top: 0.5rem;
-  background: rgba(30, 41, 59, 0.75);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  border-radius: 0.75rem;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   width: fit-content;
 }
 
 .typing-indicator .dot {
-  width: 6px;
-  height: 6px;
-  background-color: #38bdf8;
+  width: 5px;
+  height: 5px;
+  background-color: var(--text-muted);
   border-radius: 50%;
-  animation: bounce 1.2s infinite ease-in-out;
+  animation: typingFade 1.2s infinite ease-in-out;
 }
 .typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
 
-@keyframes bounce {
-  0%, 80%, 100% { transform: translateY(0); }
-  40% { transform: translateY(-5px); }
+@keyframes typingFade {
+  0%, 80%, 100% { opacity: 0.35; }
+  40% { opacity: 1; }
 }
 
 .scroll-bottom-fab {
   position: absolute;
-  bottom: 84px;
-  right: 24px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 9999px;
-  padding: 0.4rem 0.85rem;
+  bottom: 76px;
+  right: 20px;
+  background-color: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0.375rem 0.75rem;
+  font-family: var(--font-ui);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-pop);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   z-index: 15;
 }
+.scroll-bottom-fab:hover {
+  background-color: var(--accent-hover);
+}
 
-/* Rich Composer Footer */
+/* Composer Footer */
 .chat-input-bar {
   position: relative;
-  padding: 0.65rem 1.25rem;
-  padding-bottom: max(0.65rem, env(safe-area-inset-bottom));
+  padding: 0.6rem 1.15rem;
+  padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
   background-color: var(--bg-sidebar);
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -1390,11 +1444,12 @@ function handleInputBlur() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #0f172a;
-  border-left: 3px solid var(--primary);
-  border-radius: 0.5rem;
-  padding: 0.4rem 0.75rem;
-  margin-bottom: 0.5rem;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+  margin-bottom: 0.45rem;
 }
 
 .banner-info {
@@ -1404,13 +1459,16 @@ function handleInputBlur() {
 }
 
 .banner-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-size: 0.72rem;
-  color: var(--accent-color);
+  color: var(--accent);
 }
 
 .banner-snippet {
   font-size: 0.78rem;
-  color: #cbd5e1;
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1419,73 +1477,80 @@ function handleInputBlur() {
 .attachment-preview-box {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
 }
 
 .pending-thumb {
-  width: 38px;
-  height: 38px;
-  border-radius: 0.375rem;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
+  border: 1px solid var(--border);
 }
 
 .banner-close {
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 /* Emoji & Sticker Popover */
 .emoji-popover {
   position: absolute;
-  bottom: calc(100% + 8px);
-  left: 1.25rem;
-  width: 320px;
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 0.875rem;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-  padding: 0.65rem;
+  bottom: calc(100% + 6px);
+  left: 1.15rem;
+  width: 310px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+  padding: 0.6rem;
   z-index: 30;
 }
 
 .popover-tabs {
   display: flex;
   gap: 0.25rem;
-  border-bottom: 1px solid #334155;
-  padding-bottom: 0.45rem;
-  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.45rem;
 }
 
 .pop-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .pop-tab.active {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .pop-close {
   margin-left: auto;
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
+  font-size: 0.75rem;
 }
 
 .emoji-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  gap: 4px;
+  gap: 3px;
   max-height: 190px;
   overflow-y: auto;
 }
@@ -1493,15 +1558,14 @@ function handleInputBlur() {
 .emoji-cell {
   background: none;
   border: none;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   padding: 4px;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: transform 0.12s, background 0.12s;
+  transition: background-color 0.12s ease;
 }
 .emoji-cell:hover {
-  background: #334155;
-  transform: scale(1.2);
+  background-color: var(--bg-hover);
 }
 
 .sticker-grid {
@@ -1513,39 +1577,39 @@ function handleInputBlur() {
 }
 
 .sticker-cell {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 0.5rem;
-  padding: 0.45rem 0.25rem;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.25rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 .sticker-cell:hover {
-  border-color: var(--primary);
-  transform: translateY(-2px);
+  border-color: var(--accent);
+  background-color: var(--bg-hover);
 }
 
 .sticker-art {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
 }
 .sticker-label {
   font-size: 0.65rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .image-url-tab {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
   padding: 0.25rem 0;
 }
 .url-hint {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .url-input-row {
   display: flex;
@@ -1554,7 +1618,7 @@ function handleInputBlur() {
 
 .input-form {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.45rem;
   align-items: center;
 }
 
@@ -1564,73 +1628,77 @@ function handleInputBlur() {
 }
 
 .composer-tool-btn {
-  background: #0f172a;
-  border: 1px solid #334155;
-  color: #cbd5e1;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  font-size: 1.05rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .composer-tool-btn:hover,
 .composer-tool-btn.active {
-  border-color: var(--primary);
-  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+  color: var(--accent);
 }
 
 .chat-input {
   flex: 1;
-  padding: 0.68rem 1rem;
-  background: #0f172a;
-  border: 1px solid var(--border-color);
-  border-radius: 9999px;
+  padding: 0.55rem 0.75rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text-main);
-  font-size: 0.92rem;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.12s ease;
   min-width: 0;
 }
+.chat-input::placeholder {
+  color: var(--text-muted);
+}
 .chat-input:focus {
-  border-color: var(--primary);
+  border-color: var(--accent);
 }
 
 .send-btn {
-  padding: 0.68rem 1.15rem;
-  border-radius: 9999px;
-  display: flex;
+  padding: 0.55rem 0.95rem;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   flex-shrink: 0;
 }
 
 .quick-emoji-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 1.3rem;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  font-size: 1.15rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s, background 0.15s;
+  transition: background-color 0.12s ease;
 }
 .quick-emoji-btn:hover {
-  transform: scale(1.15);
-  background: rgba(255, 255, 255, 0.14);
+  background-color: var(--bg-hover);
 }
 
 /* Right Info Drawer */
 .chat-info-drawer {
-  width: 300px;
-  background: #1e293b;
-  border-left: 1px solid var(--border-color);
+  width: 290px;
+  background-color: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1639,23 +1707,24 @@ function handleInputBlur() {
 }
 
 .drawer-header {
-  padding: 0.9rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .drawer-header h3 {
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .close-drawer-btn {
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.85rem;
 }
 
 .drawer-body {
@@ -1664,7 +1733,7 @@ function handleInputBlur() {
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.15rem;
 }
 
 .drawer-profile-card {
@@ -1672,74 +1741,77 @@ function handleInputBlur() {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .drawer-avatar {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--primary);
+  border: 1px solid var(--border);
 }
 
 .drawer-title {
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .drawer-sub {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .drawer-section {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 .drawer-section-title {
   font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #94a3b8;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .theme-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
+  gap: 0.375rem;
 }
 
 .theme-swatch-btn {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  background: #0f172a;
-  border: 1px solid #334155;
-  padding: 0.4rem 0.55rem;
-  border-radius: 0.5rem;
-  color: #e2e8f0;
-  font-size: 0.72rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
   min-width: 0;
   overflow: hidden;
 }
+.theme-swatch-btn:hover {
+  background-color: var(--bg-hover);
+}
 .theme-swatch-btn.selected {
-  border-color: var(--primary);
-  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
 }
 
 .swatch-circle {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   flex-shrink: 0;
+  border: 1px solid var(--border);
 }
-
 .swatch-name {
   white-space: nowrap;
   overflow: hidden;
@@ -1753,65 +1825,66 @@ function handleInputBlur() {
 }
 
 .qe-option-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 0.5rem;
-  background: #0f172a;
-  border: 1px solid #334155;
-  font-size: 1.1rem;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  font-size: 1rem;
   cursor: pointer;
 }
 .qe-option-btn.selected {
-  border-color: var(--primary);
-  background: rgba(59, 130, 246, 0.2);
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
 }
 
 .drawer-member-list {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.375rem;
 }
 
 .drawer-member-item {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.35rem;
-  border-radius: 0.5rem;
-  background: #0f172a;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
 }
 
 .mini-avatar {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
 }
 
 .m-name {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-main);
 }
 .m-role {
-  font-size: 0.68rem;
-  color: #94a3b8;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
 }
 
 .drawer-empty {
   font-size: 0.75rem;
-  color: #64748b;
-  font-style: italic;
+  color: var(--text-muted);
 }
 
 .drawer-pinned-list {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.375rem;
 }
 
 .drawer-pinned-item {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 0.5rem;
-  padding: 0.45rem 0.6rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.55rem;
   font-size: 0.75rem;
   cursor: pointer;
 }
@@ -1819,19 +1892,19 @@ function handleInputBlur() {
 .pm-top {
   display: flex;
   justify-content: space-between;
-  color: #fbbf24;
+  color: var(--accent);
   margin-bottom: 0.15rem;
 }
 
 .pm-unpin {
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
 }
 
 .pm-content {
-  color: #cbd5e1;
+  color: var(--text-main);
   word-break: break-word;
 }
 
@@ -1843,18 +1916,18 @@ function handleInputBlur() {
 
 .shared-media-thumb {
   width: 100%;
-  height: 68px;
+  height: 64px;
   object-fit: cover;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  border: 1px solid #334155;
+  border: 1px solid var(--border);
 }
 
 /* Lightbox Modal */
 .lightbox-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background-color: rgba(2, 6, 16, 0.88);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1874,17 +1947,22 @@ function handleInputBlur() {
 .lightbox-img {
   max-width: 90vw;
   max-height: 82vh;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-sm);
   object-fit: contain;
 }
 
 .lightbox-close {
-  background: #ef4444;
-  color: #fff;
-  border: none;
-  padding: 0.45rem 1rem;
-  border-radius: 9999px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -1894,16 +1972,16 @@ function handleInputBlur() {
     right: 0;
     top: 0;
     bottom: 0;
-    width: 310px;
+    width: 300px;
     max-width: 88vw;
-    box-shadow: -8px 0 28px rgba(0, 0, 0, 0.55);
+    box-shadow: var(--shadow-pop);
     z-index: 25;
   }
 }
 
 @media (max-width: 768px) {
   .chat-header {
-    padding: 0.625rem 0.875rem;
+    padding: 0.6rem 0.85rem;
   }
   .partner-name {
     max-width: 140px;

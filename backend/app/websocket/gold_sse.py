@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Set
+from typing import Optional, Set
 
 logger = logging.getLogger("webchat.gold.sse")
 
@@ -24,16 +24,20 @@ class SSEManager:
         self._subscribers.discard(queue)
         logger.info(f"Gold SSE client disconnected. Active connections: {len(self._subscribers)}")
 
-    async def broadcast_price_update(self, saved_count: int):
+    async def broadcast_price_update(self, saved_count: int, source_id: Optional[int] = None):
         """Broadcast a price-update event to all active clients."""
         if not self._subscribers:
             logger.debug("No active SSE clients to broadcast to.")
             return
 
-        logger.info(f"Broadcasting gold price-update to {len(self._subscribers)} client(s). Saved: {saved_count}")
+        logger.info(
+            f"Broadcasting gold price-update to {len(self._subscribers)} client(s). "
+            f"Saved: {saved_count}, source_id: {source_id}"
+        )
         payload = {
             "saved": saved_count,
-            "timestamp": int(asyncio.get_event_loop().time() * 1000)
+            "source_id": source_id,
+            "timestamp": int(asyncio.get_event_loop().time() * 1000),
         }
         event_message = f"event: price-update\ndata: {json.dumps(payload)}\n\n"
 
@@ -50,4 +54,3 @@ class SSEManager:
 
 
 gold_sse_manager = SSEManager()
-

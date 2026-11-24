@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Text, ForeignKey, Index, BigInteger, Numeric, func
+    Column, String, Boolean, DateTime, Text, ForeignKey, Index, BigInteger, Integer, Numeric, func
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -87,20 +87,45 @@ class Message(Base):
         Index("ix_messages_conv_created", "conversation_id", created_at.desc()),
     )
 
+class GoldSource(Base):
+    __tablename__ = "gold_sources"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    url = Column(Text, nullable=False)
+    interval_minutes = Column(Integer, nullable=False, default=10)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0, index=True)
+    extract_rules = Column(Text, nullable=True)
+    last_scan_at = Column(DateTime(timezone=True), nullable=True)
+    last_status = Column(String(20), nullable=False, default="NEVER")  # NEVER | SUCCESS | ERROR
+    last_message = Column(Text, nullable=True)
+    last_row_count = Column(Integer, nullable=False, default=0)
+    last_duration_ms = Column(Integer, nullable=True)
+    last_strategy = Column(String(30), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    prices = relationship("GoldPriceHistory", back_populates="source", cascade="all, delete-orphan")
+
+
 class GoldPriceHistory(Base):
     __tablename__ = "gold_price_history"
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    source_id = Column(Integer, ForeignKey("gold_sources.id", ondelete="CASCADE"), nullable=True, index=True)
     gold_type = Column(String(100), nullable=False, index=True)
     buy_price = Column(Numeric(15, 2), nullable=False)
     sell_price = Column(Numeric(15, 2), nullable=False)
     price_date = Column(String(50), nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
+    source = relationship("GoldSource", back_populates="prices")
+
     __table_args__ = (
         Index("ix_gold_type_updated", "gold_type", "updated_at"),
+        Index("ix_gold_source_type_updated", "source_id", "gold_type", "updated_at"),
     )
 
     def __repr__(self):
-        return f"<GoldPriceHistory id={self.id} type={self.gold_type} buy={self.buy_price} sell={self.sell_price} updated={self.updated_at}>"
+        return f"<GoldPriceHistory id={self.id} source_id={self.source_id} type={self.gold_type} buy={self.buy_price} sell={self.sell_price} updated={self.updated_at}>"
 
