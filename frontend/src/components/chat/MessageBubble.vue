@@ -234,6 +234,12 @@ function escapeHtml(str) {
 
 const formattedHtmlContent = computed(() => {
   let safe = escapeHtml(props.message.content)
+  // Biến động giá vàng của bot: (▲ +20.000đ) xanh, (▼ -20.000đ) đỏ
+  safe = safe.replace(
+    /\((▲|▼) ([+-][\d.,]+đ)\)/g,
+    (_, arrow, amount) =>
+      `<span class="price-delta ${arrow === '▲' ? 'delta-up' : 'delta-down'}">(${arrow} ${amount})</span>`
+  )
   safe = safe.replace(
     /(https?:\/\/[^\s<]+)/g,
     '<a href="$1" target="_blank" rel="noopener noreferrer" class="chat-link">$1</a>'
@@ -572,6 +578,23 @@ async function copyMessageText() {
   color: var(--accent);
   text-decoration: underline;
   word-break: break-all;
+}
+
+.message-text :deep(.price-delta) {
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.message-text :deep(.delta-up) {
+  background-color: #052e1b;
+  color: #4ade80;
+}
+
+.message-text :deep(.delta-down) {
+  background-color: #3a1620;
+  color: #f87171;
 }
 
 .message-text :deep(.search-mark) {

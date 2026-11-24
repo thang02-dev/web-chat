@@ -353,32 +353,23 @@ class GoldCrawlerManager:
         scraped: Optional[List] = None,
         changes: Optional[List[Dict]] = None,
     ) -> str:
-        """Tạo nội dung tin nhắn báo cáo kết quả quét giá vàng gửi từ Admin."""
+        """Tạo nội dung tin nhắn báo giá vàng (ngắn gọn) gửi từ Admin."""
         vn_time_str = now_utc.astimezone(VN_TZ).strftime("%H:%M:%S %d/%m/%Y")
-        eff_interval = interval_minutes or self.interval_minutes
-        source_label = "Thủ công" if source == "MANUAL" else f"Tự động ({eff_interval} phút/lần)"
 
-        lines = [
-            "🤖 [BOT GIÁ VÀNG - LỊCH SỬ CALL]",
-            f"🕒 Thời gian: {vn_time_str}",
-        ]
+        lines: List[str] = []
         if source_name:
             lines.append(f"🏪 Cửa hàng: {source_name}")
-        lines.append(f"⚙️ Phương thức: {source_label}")
+        lines.append(f"🕒 Thời gian: {vn_time_str}")
 
         if status_str != "SUCCESS":
-            lines.append(f"❌ Trạng thái: Lỗi kiểm tra giá ({msg})")
-        elif saved > 0:
-            lines.append(f"📈 Kết quả: Phát hiện {saved} loại vàng có biến động giá!")
-        else:
-            lines.append("✅ Kết quả: Giá vàng không thay đổi so với lần kiểm tra trước.")
+            lines.append(f"❌ Lỗi quét giá: {msg}")
 
         eff_scraped = scraped if scraped is not None else (getattr(gold_price_service, "last_scraped", []) or [])
         eff_changes = changes if changes is not None else (getattr(gold_price_service, "last_changes", []) or [])
         changes_by_type = {c["gold_type"]: c for c in eff_changes if "gold_type" in c}
 
         if eff_scraped:
-            lines.append("────────────────────")
+            lines.append("Giá vàng")
             for dto in eff_scraped:
                 chg = changes_by_type.get(dto.gold_type)
                 buy_delta_str = _format_delta(chg.get("buy_delta")) if chg else ""
@@ -388,7 +379,6 @@ class GoldCrawlerManager:
                     f"Bán {_format_vnd(dto.sell_price)}{sell_delta_str}"
                 )
 
-        lines.append("🧹 (Tin nhắn lịch sử bot tự động xóa lúc 00:00)")
         return "\n".join(lines)
 
     async def _send_crawl_notification_if_needed(

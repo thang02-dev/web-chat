@@ -205,3 +205,33 @@ describe('MB · MessageBubble – reaction & thanh hành động', () => {
   })
 })
 
+
+
+describe('MB · Biến động giá vàng của bot', () => {
+  const content = [
+    '🏪 Cửa hàng: Hiệu Vàng Trữ',
+    '• Vàng 9999: Mua 11.740.000đ (▲ +20.000đ) | Bán 11.880.000đ (▼ -10.000đ)',
+    '• Vàng 98%: Mua 11.640.000đ | Bán 11.800.000đ'
+  ].join('\n')
+
+  it('MB-BOT-001 tăng có class delta-up, giảm có class delta-down', () => {
+    const w = mountBubble({ content })
+    const up = w.findAll('.delta-up')
+    const down = w.findAll('.delta-down')
+    expect(up).toHaveLength(1)
+    expect(up[0].text()).toBe('(▲ +20.000đ)')
+    expect(down).toHaveLength(1)
+    expect(down[0].text()).toBe('(▼ -10.000đ)')
+  })
+
+  it('MB-BOT-002 dòng không đổi không bị tô màu', () => {
+    const w = mountBubble({ content: '• Vàng 98%: Mua 11.640.000đ | Bán 11.800.000đ' })
+    expect(w.find('.price-delta').exists()).toBe(false)
+  })
+
+  it('MB-BOT-003 vẫn thoát HTML, không cho chèn thẻ qua nội dung', () => {
+    const w = mountBubble({ content: '<b>x</b> (▲ +1.000đ)' })
+    expect(w.find('.message-text b').exists()).toBe(false)
+    expect(w.findAll('.delta-up')).toHaveLength(1)
+  })
+})

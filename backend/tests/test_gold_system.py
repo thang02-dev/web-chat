@@ -228,7 +228,9 @@ async def test_gold_bot_notification_modes_and_midnight_cleanup(client: AsyncCli
         for m in bot_msgs:
             assert m.sender_id == admin_user.id
             assert m.client_temp_id.startswith("gold_bot_")
-            assert "[BOT GIÁ VÀNG - LỊCH SỬ CALL]" in m.content
+            assert "Giá vàng" in m.content
+            assert "Thời gian:" in m.content
+            assert "[BOT GIÁ VÀNG" not in m.content
 
         # Tạo thêm 1 tin nhắn trò chuyện bình thường giữa recipient và admin
         normal_msg, _ = await ChatService.create_message(

@@ -460,3 +460,30 @@ async def test_apply_interval_to_all_sources(client: AsyncClient, offline):
         for sid, m in before.items():
             await client.patch(f"/api/v1/admin/gold-sources/{sid}", json={"interval_minutes": m}, headers=h)
         await delete_store(client, h, a["id"])
+
+
+def test_bot_notification_content_is_compact():
+    from decimal import Decimal
+    from app.schemas.gold import GoldPriceDto
+
+    def dto(name, buy, sell):
+        return GoldPriceDto(gold_type=name, buy_price=Decimal(buy), sell_price=Decimal(sell), price_date="")
+
+    now = datetime(2026, 11, 24, 5, 22, 41, tzinfo=timezone.utc)
+    scraped = [dto("Vàng 9999", 11880000, 12040000), dto("Vàng 98%", 11640000, 11800000)]
+    changes = [{"gold_type": "Vàng 9999", "buy_delta": 20000, "sell_delta": -10000}]
+    text = crawler_manager._build_notification_content(
+        now, "SCHEDULED", "SUCCESS", 1, "ok",
+        source_name="Hiệu Vàng Trữ", scraped=scraped, changes=changes)
+    lines = text.split("\n")
+    assert lines[0] == "🏪 Cửa hàng: Hiệu Vàng Trữ"
+    assert lines[1] == "🕒 Thời gian: 12:22:41 24/11/2026"
+    assert lines[2] == "Giá vàng"
+    assert lines[3] == "• Vàng 9999: Mua 11.880.000đ (▲ +20.000đ) | Bán 12.040.000đ (▼ -10.000đ)"
+    assert lines[4] == "• Vàng 98%: Mua 11.640.000đ | Bán 11.800.000đ"
+    assert len(lines) == 5
+    assert "BOT" not in text and "Phương thức" not in text
+
+    err = crawler_manager._build_notification_content(
+        now, "MANUAL", "ERROR", 0, "timeout", source_name="X", scraped=[], changes=[])
+    assert "❌ Lỗi quét giá: timeout" in err
