@@ -19,9 +19,9 @@ const mountBatch = (n) =>
   })
 
 describe('TB · TimelineBatch – xem 2 khối / tất cả', () => {
-  it('TB-001 mặc định chỉ hiện 2 khối và nút "Xem tất cả (N)"', () => {
+  it('TB-001 mặc định chỉ hiện 3 khối và nút "Xem tất cả (N)"', () => {
     const w = mountBatch(7)
-    expect(w.findAll('.gold-type-badge')).toHaveLength(2)
+    expect(w.findAll('.gold-type-badge')).toHaveLength(3)
     expect(w.find('.btn-expand-batch').text()).toContain('Xem tất cả (7)')
   })
 
@@ -32,10 +32,11 @@ describe('TB · TimelineBatch – xem 2 khối / tất cả', () => {
     expect(w.find('.btn-expand-batch').text()).toContain('Thu gọn')
     expect(w.find('.btn-expand-batch').attributes('aria-expanded')).toBe('true')
     await w.find('.btn-expand-batch').trigger('click')
-    expect(w.findAll('.gold-type-badge')).toHaveLength(2)
+    expect(w.findAll('.gold-type-badge')).toHaveLength(3)
   })
 
-  it('TB-003 từ 2 khối trở xuống thì không có nút', () => {
+  it('TB-003 từ 3 khối trở xuống thì không có nút', () => {
+    expect(mountBatch(3).find('.btn-expand-batch').exists()).toBe(false)
     expect(mountBatch(2).find('.btn-expand-batch').exists()).toBe(false)
     expect(mountBatch(1).find('.btn-expand-batch').exists()).toBe(false)
     expect(mountBatch(0).find('.btn-expand-batch').exists()).toBe(false)
@@ -43,7 +44,7 @@ describe('TB · TimelineBatch – xem 2 khối / tất cả', () => {
 
   it('TB-004 thứ tự khối giữ nguyên khi thu gọn', () => {
     const w = mountBatch(5)
-    expect(w.findAll('.gold-type-badge').map((b) => b.text())).toEqual(['Vàng 1', 'Vàng 2'])
+    expect(w.findAll('.gold-type-badge').map((b) => b.text())).toEqual(['Vàng 1', 'Vàng 2', 'Vàng 3'])
   })
 })
 

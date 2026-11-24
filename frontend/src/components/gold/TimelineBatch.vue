@@ -64,7 +64,7 @@
       </div>
     </div>
 
-    <!-- Batch Cards Grid: mặc định 2 khối, bấm nút để xem tất cả -->
+    <!-- Batch Cards Grid: mặc định 3 khối, bấm nút để xem tất cả -->
     <div class="row">
       <GoldCard
         v-for="card in visibleCards"
@@ -92,7 +92,7 @@
 import { ref, computed } from 'vue'
 import GoldCard from './GoldCard.vue'
 
-const PREVIEW_COUNT = 2
+const PREVIEW_COUNT = 3
 
 const props = defineProps({
   batch: {
